@@ -12,7 +12,7 @@ export CC_INFO="$($CC --version | head -n 1) ($(which $CC))"
 export CFLAGS=("-arch arm64")
 export ERR_CFLAGS=("-pedantic" "-Wall" "-Werror")
 export OPT_CFLAGS=("-O3" "-flto")
-export DEBUG_CFLAGS=("-g" "-fdebug-macro")
+export DEBUG_CFLAGS=("-O0" "-g" "-fdebug-macro")
 
 export ASM="clang"
 export ASM_INFO="$CC_INFO"
@@ -21,3 +21,6 @@ export ASMFLAGS=("-x" "assembler-with-cpp")
 export DEBUGGER="lldb"
 export DEBUG_FLAGS=()
 export DEBUGGER_INFO="$($DEBUGGER --version | head -n 1) ($(which $DEBUGGER))"
+
+export CHECK=""
+export CHECK_FLAGS=""

@@ -9,7 +9,7 @@ export CC_INFO="$($CC --version | head -n 1) ($(which $CC))"
 export CFLAGS=()
 export ERR_CFLAGS=("-pedantic" "-Wall" "-Werror")
 export OPT_CFLAGS=("-O3" "-flto")
-export DEBUG_CFLAGS=("-g")
+export DEBUG_CFLAGS=("-O0" "-g")
 
 export ASM="gcc"
 export ASM_INFO="$CC_INFO"
@@ -18,3 +18,6 @@ export ASMFLAGS=("-x" "assembler-with-cpp")
 export DEBUGGER="gdb"
 export DEBUG_FLAGS=("-tui")
 export DEBUGGER_INFO="$($DEBUGGER --version | head -n 1) ($(which $DEBUGGER))"
+
+export CHECK="valgrind"
+export CHECK_FLAGS="--leak-check=full --show-reachable=yes -s"
