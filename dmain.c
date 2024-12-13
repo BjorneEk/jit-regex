@@ -4,6 +4,8 @@
 #include "src/codegen/codegen.h"
 #include "src/util/dla.h"
 #include "src/aarch64/aarch64_ins.h"
+#include "src/jit/aarch64_jit.h"
+#include "src/util/mfile.h"
 const char *float_re = "[0-9]+(.[0-9]*)?";
 
 
@@ -57,7 +59,7 @@ void test_dfa(const char *re, char *dotname, char *cname, char *sname)
 }
 
 CODEGEN_DLA(aarch64_t, arm)
-void jit_test(char *bin)
+void test_aarch64_asm(char *bin)
 {
 	dla_t code;
 	FILE *fp;
@@ -77,7 +79,7 @@ void jit_test(char *bin)
 	arm_append(&code, aarch64_movi(R0, 0x1000000000000));
 	arm_append(&code, aarch64_movwi(R0, 1));
 	arm_append(&code, aarch64_movwi(R0, 0x10000));
-	arm_append(&code, aarch64_cond_branch(NE, -4));
+	arm_append(&code, aarch64_branch(NE, -4));
 	arm_append(&code, aarch64_add_imm(R1, R1, 1));
 
 	fp = fopen(bin, "w");
@@ -88,6 +90,99 @@ void jit_test(char *bin)
 
 }
 
+void _grep(const char *fname, int (*lex)(const char**,const char**))
+{
+	const char *b, *e;
+	mfile_t file;
+	char buff[4096];
+	mfile_open(&file, fname);
+	b = file.data;
+loop:
+	if (lex(&b, &e)) {
+		for(;;) {
+			if (*e == '\n')
+				break;
+			if (*e == '\0')
+				return;
+			++e;
+		}
+		strncpy(buff, b, e - b);
+		puts(buff);
+		b = e + 1;
+		goto loop;
+	}
+	for(;;) {
+		if (*b == '\n')
+			break;
+		if (*b != '\0')
+			return;
+		++b;
+	}
+	++b;
+	goto loop;
+}
+
+void test_grep(const char *re, const char *inname, const char *bin_out)
+{
+
+	re_ast_t ast;
+	aarch64_prog_t prog;
+	resz_t root;
+	dfa_t dfa;
+	FILE *bin;
+	int (*lex)(const char**,const char**);
+
+	re_ast_init(&ast, 30);
+	root = parse_regex(&ast, re);
+	make_dfa(&dfa, &ast, root);
+	aarch64_jit(&prog, &dfa, &ast, "\n");
+	re_ast_deinit(&ast);
+	deinit_dfa(&dfa);
+
+	bin = fopen(bin_out, "w");
+	aarch64_write_bin(bin, &prog);
+	fclose(bin);
+
+	lex = (int (*)(const char**,const char**))(uintptr_t)prog.code;
+	_grep(inname, lex);
+	aarch64_prog_deinit(&prog);
+
+}
+
+void test_jit(const char *re, const char *in, const char *bin_out)
+{
+
+	re_ast_t ast;
+	aarch64_prog_t prog;
+	resz_t root;
+	dfa_t dfa;
+	FILE *bin;
+	const char *b, *e;
+	int (*lex)(const char**,const char**);
+
+	re_ast_init(&ast, 30);
+	root = parse_regex(&ast, re);
+	make_dfa(&dfa, &ast, root);
+	aarch64_jit(&prog, &dfa, &ast, "\n");
+	re_ast_deinit(&ast);
+	deinit_dfa(&dfa);
+
+	bin = fopen(bin_out, "w");
+	aarch64_write_bin(bin, &prog);
+	fclose(bin);
+
+	lex = (int (*)(const char**,const char**))(uintptr_t)prog.code;
+	b = in;
+	while (lex(&b, &e)) {
+		printf("Match: [%lu - %lu] [%c - %c]\n", b - in, e - in, *b, *e);
+		b = e + 1;
+	}
+	aarch64_prog_deinit(&prog);
+
+}
+
+
+
 int main(void)
 {
 	//test_regex(c_float_re);
@@ -96,6 +191,8 @@ int main(void)
 	test_dfa(c_float_re, "files/float.dot", "files/float.c", "files/float.S");
 	test_dfa(c_int_re,"files/int.dot", "files/int.c", "files/int.S");
 	test_dfa(re_print,"files/print.dot", "files/print.c", "files/print.S");
-	jit_test("files/jit.bin");
+	test_aarch64_asm("files/jit.bin");
+	test_jit(c_int_re,"0xFEADBEEF 07 -10 hgh", "files/int.bin");
+	test_grep("print", "files/print.in", "files/print.out");
 	return 0;
 }

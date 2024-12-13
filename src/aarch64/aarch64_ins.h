@@ -59,8 +59,10 @@ typedef enum aarch64_cond {
 	GT	= 0b1100,
 	LE	= 0b1101,
 	AL	= 0b1110,
-	NV	= 0b1111
+	NV	= 0b1111,
+	B
 } aarch64_cond_t;
+#define LO (CC)
 
 typedef enum aarch64_load {
 	LDRX	= 0b111110010100000000000000000000, //ldr	x0, [x0] 8-byte
@@ -91,24 +93,24 @@ typedef enum aarch64_store {
 } aarch64_store_t;
 
 
-aarch64_t aarch64_branch(i32_t imm);
+//aarch64_t aarch64_branch(i32_t imm);
 
-aarch64_t aarch64_cond_branch(aarch64_cond_t cond, i32_t imm19);
+aarch64_t aarch64_branch(aarch64_cond_t cond, i32_t imm);
 
-aarch64_t aarch64_cmpw_imm(aarch64_reg_t reg, i32_t imm);
+aarch64_t aarch64_cmpw(aarch64_reg_t reg, i32_t imm);
 
-aarch64_t aarch64_cmpx_imm(aarch64_reg_t reg, i32_t imm);
+aarch64_t aarch64_cmpx(aarch64_reg_t reg, i32_t imm);
 
 aarch64_t aarch64_ldr(
 	aarch64_load_t ins,
 	aarch64_reg_t dst,
-	aarch64_reg_t addr_reg,
+	aarch64_reg_t addr,
 	u32_t imm);
 
 aarch64_t aarch64_str(
 	aarch64_store_t ins,
 	aarch64_reg_t dst,
-	aarch64_reg_t addr_reg,
+	aarch64_reg_t addr,
 	u32_t imm);
 
 aarch64_t aarch64_mov(aarch64_reg_t dst, aarch64_reg_t src);
@@ -120,6 +122,6 @@ aarch64_t aarch64_add_imm(aarch64_reg_t dst, aarch64_reg_t src, i32_t imm);
 
 aarch64_t aarch64_sub_imm(aarch64_reg_t dst, aarch64_reg_t src, i32_t imm);
 
-static inline aarch64_t aarch64_ret() { return 0xd65f03c0; }
-static inline aarch64_t aarch64_nop() { return 0xd503201f; }
+static inline aarch64_t aarch64_ret(void) { return 0xd65f03c0; }
+static inline aarch64_t aarch64_nop(void) { return 0xd503201f; }
 #endif /* _AARCH64_INSTRUCTIONS_H_ */

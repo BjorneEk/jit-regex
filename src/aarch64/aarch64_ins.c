@@ -4,7 +4,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-aarch64_t aarch64_branch(i32_t imm)
+
+
+
+static aarch64_t aarch64_uncond_branch(i32_t imm)
 {
 	const aarch64_t imask		= 0b00010100000000000000000000000000;
 	const aarch64_t getbits_mask	= 0b00000011111111111111111111111111;
@@ -13,9 +16,11 @@ aarch64_t aarch64_branch(i32_t imm)
 }
 
 
-aarch64_t aarch64_cond_branch(aarch64_cond_t cond, i32_t imm19)
+aarch64_t aarch64_branch(aarch64_cond_t cond, i32_t imm)
 {
-	return (0b01010100 << 24) | (imm19 & 0b1111111111111111111) << 5 | (cond & 0xF);
+	if (cond == B)
+		return aarch64_uncond_branch(imm);
+	return (0b01010100 << 24) | (imm & 0b1111111111111111111) << 5 | (cond & 0xF);
 }
 
 static aarch64_t aarch64_imm(i32_t imm)
@@ -29,16 +34,16 @@ static aarch64_t aarch64_imm(i32_t imm)
 	return (imm << 10) & imm_mask;
 }
 
-aarch64_t aarch64_cmpw_imm(aarch64_reg_t reg, i32_t imm)
+aarch64_t aarch64_cmpw(aarch64_reg_t reg, i32_t imm)
 {
-	const aarch64_t imask		= 0b01110001000000000000000010011111;
+	const aarch64_t imask	= 0b01110001000000000000000000011111;
 
 	return (reg << 5) | aarch64_imm(imm) | imask;
 }
 
-aarch64_t aarch64_cmpx_imm(aarch64_reg_t reg, i32_t imm)
+aarch64_t aarch64_cmpx(aarch64_reg_t reg, i32_t imm)
 {
-	return aarch64_cmpw_imm(reg, imm) | (1 << 31);
+	return aarch64_cmpw(reg, imm) | (1 << 31);
 }
 
 static void err_range(i64_t imm, i64_t min, i64_t max, char *ty)

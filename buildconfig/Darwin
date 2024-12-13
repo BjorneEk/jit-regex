@@ -9,8 +9,8 @@ export CPU_COUNT=$(sysctl -n hw.physicalcpu)
 # compiler and assembler
 export CC="clang"
 export CC_INFO="$($CC --version | head -n 1) ($(which $CC))"
-export CFLAGS=("-arch arm64")
-export ERR_CFLAGS=("-pedantic" "-Wall" "-Werror" "-Wno-error=unused-function" "-Wno-unused-function")
+export CFLAGS=("-arch arm64" "-std=c2x")
+export ERR_CFLAGS=("-pedantic" "-Wall" "-Werror" "-Wno-newline-eof" "-Wno-gnu-binary-literal" "-Wno-error=unused-function" "-Wno-unused-function")
 export OPT_CFLAGS=("-O3" "-flto")
 export DEBUG_CFLAGS=("-O0" "-g" "-fdebug-macro")
 
