@@ -1,7 +1,12 @@
 #include "aarch64_jit.h"
 
+#include <errno.h>
 #include <unistd.h>
 #include <sys/mman.h>
+
+#if defined(__APPLE__) && defined(__MACH__)
+	#include <libkern/OSCacheControl.h>
+#endif
 
 CODEGEN_DLA(aarch64_branch_t, branches)
 CODEGEN_DLA(aarch64_t, a64)
@@ -253,17 +258,17 @@ static void gen_mach(aarch64_mach_t *m, dfa_t *dfa, re_ast_t *ast, const char *e
 
 	link_mach(m);
 }
-
+#if defined(__linux__)
 #ifndef MAP_ANONYMOUS
 #define MAP_ANONYMOUS 0x20
 #endif
-void aarch64_prog_init(aarch64_prog_t *prog, size_t size)
+static void aarch64_prog_init(aarch64_prog_t *prog, size_t size)
 {
 	size_t page_size;
 	size_t size_;
 
 	page_size = sysconf(_SC_PAGESIZE);
-	size_  = (((size * sizeof(u32_t)) + page_size - 1) / page_size) * page_size;
+	size_  = ((size * sizeof(u32_t)) / page_size) + page_size;
 
 	prog->code = mmap(
 		NULL,
@@ -274,24 +279,12 @@ void aarch64_prog_init(aarch64_prog_t *prog, size_t size)
 		0);
 
 	if (prog->code == MAP_FAILED) {
-		fprintf(stderr, "aarch64_new_jit failed\n");
+		fprintf(stderr, "mmap failed (%s)\n", strerror(errno));
 		exit(1);
 	}
 
 	prog->size = size;
 }
-
-void aarch64_prog_deinit(aarch64_prog_t *prog)
-{
-
-	size_t page_size;
-	size_t size_;
-
-	page_size = sysconf(_SC_PAGESIZE);
-	size_  = (((prog->size * sizeof(u32_t)) + page_size - 1) / page_size) * page_size;
-	munmap(prog->code, size_);
-}
-
 void aarch64_jit(aarch64_prog_t *prog, dfa_t *dfa, re_ast_t *ast, const char *endchars)
 {
 	aarch64_mach_t m;
@@ -307,6 +300,60 @@ void aarch64_jit(aarch64_prog_t *prog, dfa_t *dfa, re_ast_t *ast, const char *en
 		a64_deinit(&b.instructions);
 	}
 	blocks_deinit(&m.blocks);
+}
+#elif defined(__APPLE__) && defined(__MACH__)
+void aarch64_jit(aarch64_prog_t *prog, dfa_t *dfa, re_ast_t *ast, const char *endchars)
+{
+	aarch64_mach_t m;
+	aarch64_block_t b;
+	size_t page_size;
+	size_t size;
+	int i;
+
+	gen_mach(&m, dfa, ast, endchars);
+
+	page_size = sysconf(_SC_PAGESIZE);
+	size = ((m.length * sizeof(aarch64_t)) / page_size) + page_size;
+
+	prog->code = mmap(
+		NULL,
+		size,
+		PROT_READ | PROT_WRITE,
+		MAP_PRIVATE | MAP_ANONYMOUS | MAP_JIT,
+		-1,
+		0
+	);
+
+	if (prog->code == MAP_FAILED) {
+		fprintf(stderr, "mmap failed (%s)\n", strerror(errno));
+		exit(-1);
+	}
+
+	for (i = 0; i < m.blocks.length; i++) {
+		b = blocks_get(&m.blocks, i);
+		memcpy(&prog->code[b.offset], b.instructions.data, b.instructions.length * sizeof(aarch64_t));
+		a64_deinit(&b.instructions);
+	}
+	blocks_deinit(&m.blocks);
+
+	if (mprotect(prog->code, size, PROT_READ | PROT_EXEC) == -1) {
+		fprintf(stderr, "mprotect failed (%s)\n", strerror(errno));
+		munmap(prog->code, size);
+		exit(-1);
+	}
+
+	sys_icache_invalidate(prog->code, m.length * sizeof(aarch64_t));
+}
+#endif
+void aarch64_prog_deinit(aarch64_prog_t *prog)
+{
+
+	size_t page_size;
+	size_t size_;
+
+	page_size = sysconf(_SC_PAGESIZE);
+	size_ = ((prog->size * sizeof(u32_t)) / page_size) + page_size;
+	munmap(prog->code, size_);
 }
 
 void aarch64_write_bin(FILE *fp, const aarch64_prog_t *prog)

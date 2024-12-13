@@ -13,6 +13,7 @@ typedef enum aarch64_branch_type {
 	REDO_INNER,
 	MISS
 } aarch64_branch_type_t;
+
 typedef struct aarch64_branch {
 	aarch64_branch_type_t	ty;
 	aarch64_cond_t		cond;
@@ -42,7 +43,6 @@ typedef struct aarch64_prog {
 	size_t		size;
 } aarch64_prog_t;
 
-void aarch64_prog_init(aarch64_prog_t *prog, size_t size);
 void aarch64_prog_deinit(aarch64_prog_t *prog);
 void aarch64_jit(aarch64_prog_t *prog, dfa_t *dfa, re_ast_t *ast, const char *endchars);
 void aarch64_write_bin(FILE *fp, const aarch64_prog_t *prog);

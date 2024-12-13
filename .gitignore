@@ -2,3 +2,7 @@ files
 bin
 build
 .DS_Store
+test_input.c
+duper
+gmon.out
+testin_smaller.c

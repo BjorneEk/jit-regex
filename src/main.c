@@ -3,7 +3,6 @@
 #include "regex.h"
 #include "jit/aarch64_jit.h"
 #include "util/mfile.h"
-
 int (*lex)(const char**,const char**);
 
 void grep(const char *fname)
@@ -39,6 +38,40 @@ loop:
 	ls = b;
 	goto loop;
 }
+void grepcnt(const char *fname)
+{
+	const char *b, *e;
+	mfile_t file;
+	unsigned long cnt = 0;
+	mfile_open(&file, fname);
+	b = file.data;
+loop:
+	if (lex(&b, &e)) {
+		for(;;) {
+			if (*e == '\n')
+				break;
+			if (*e == '\0') {
+				printf("%lu\n", cnt);
+				return;
+			}
+			++e;
+		}
+		++cnt;
+		b = e + 1;
+		goto loop;
+	}
+	for(;;) {
+		if (*b == '\n')
+			break;
+		if (*b == '\0') {
+			printf("%lu\n", cnt);
+			return;
+		}
+		++b;
+	}
+	++b;
+	goto loop;
+}
 
 #ifndef DEBUG_MAIN
 int main(int argc, char *argv[])
@@ -48,13 +81,19 @@ int main(int argc, char *argv[])
 	resz_t root;
 	dfa_t dfa;
 	int i;
+	int i0 = 2;
+	void (*func)(const char *) = grep;
 	if (argc < 2) {
 		printf("Unexpected arguments\n%s	<regex> <file(s)>\n", argv[0]);
 		exit(-1);
 	}
 
 	re_ast_init(&ast, 30);
-	root = parse_regex(&ast, argv[1]);
+	if (!strcmp(argv[1], "-c")) {
+		func = grepcnt;
+		i0 = 3;
+	}
+	root = parse_regex(&ast, argv[i0 - 1]);
 	make_dfa(&dfa, &ast, root);
 	aarch64_jit(&prog, &dfa, &ast, "\n");
 	re_ast_deinit(&ast);
@@ -63,8 +102,8 @@ int main(int argc, char *argv[])
 
 	lex = (int (*)(const char**,const char**))(uintptr_t)prog.code;
 
-	for (i = 2; i < argc; i++)
-		grep(argv[i]);
+	for (i = i0; i < argc; i++)
+		func(argv[i]);
 
 	aarch64_prog_deinit(&prog);
 	return 0;

@@ -207,7 +207,7 @@ echo "	@\$(CC) -o \$@ $DEBUG_MAIN \$(DEBUG_OBJECT_FILES) \$(CFLAGS) \$(ERR_CFLAG
 echo "	@echo \"Debug target:  \$@\""
 echo ""
 echo "\$(RELEASE_TARGET): \$(RELEASE_OBJECT_FILES) bin/$KERNEL/release"
-echo "	@\$(CC) -o \$@ \$(RELEASE_OBJECT_FILES) \$(CFLAGS) \$(ERR_CFLAGS) \$(DEBUG_CFLAGS)"
+echo "	@\$(CC) -o \$@ \$(RELEASE_OBJECT_FILES) \$(CFLAGS) \$(ERR_CFLAGS) \$(OPT_CFLAGS)"
 echo "	@echo \"Release target:  \$@\""
 echo ""
 echo "run: \$(RELEASE_TARGET)"
