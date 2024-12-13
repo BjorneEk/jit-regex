@@ -1,4 +1,5 @@
 #include "regex.h"
+#include "util/dla.h"
 #include "dfa.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -334,7 +335,7 @@ void deinit_dfa(dfa_t *dfa)
 	free(dfa->states);
 }
 
-static bool is_accepting_state(re_ast_t *ast, state_t *s)
+bool is_accepting_state(re_ast_t *ast, state_t *s)
 {
 	int i;
 
@@ -423,6 +424,26 @@ void print_dfa_digraph(FILE *out, dfa_t *dfa, re_ast_t *ast)
 		print_state_dot(out, dfa, ast, i);
 	}
 	fprintf(out, "}");
+}
+
+//CODEGEN_DLA(u8_t, bytes)
+
+bool state_transition_inv(dfa_t *dfa, int idx, dla_t *dsts)
+{
+	int i;
+	bool used;
+	state_t *s;
+
+	s = &dfa->states[idx];
+	for (i = 0; i < dfa->length; i++)
+		bytes_init(&dsts[i], 10);
+	used = 0;
+	for (i = 0; i < 256; i++)
+		if (s->transition[i] != 0) {
+			used = true;
+			bytes_append(&dsts[s->transition[i] - 1], (u8_t)i);
+		}
+	return used;
 }
 
 /*

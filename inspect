@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+
+tmp=$(mktemp tempXXXXXX.S)
+tmp_obj=$(mktemp tempXXXXXX.o)
+OS=$(uname -s)
+#echo "$HEADER" > "$tmp"
+n=5
+
+echo "_fn:" > "$tmp"
+echo "before:" >> "$tmp"
+#for ((i = 0; i < n; i++)); do
+#	echo "	add x1, x1, #1" >> "$tmp"
+#done
+echo "	$1" >> "$tmp"
+#for ((i = 0; i < n; i++)); do
+#	echo "	add x1, x1, #1" >> "$tmp"
+#done
+echo "	after:" >> "$tmp"
+#echo "	ret" >> "$tmp"
+echo "	lbl2l:" >> "$tmp"
+echo "	add x3, x3, x3" >> "$tmp"
+echo "	add x3, x3, x3" >> "$tmp"
+echo "	add x3, x3, x3" >> "$tmp"
+echo "	lbl3l:" >> "$tmp"
+
+cc -c "$tmp" -o "$tmp_obj"
+
+[ "$OS" == 'Linux' ] && dump=$(objdump --disassemble=_fn "$tmp_obj")
+[ "$OS" != 'Linux' ] && dump=$(objdump --disassemble-symbols=_fn "$tmp_obj")
+rm "$tmp_obj"
+rm "$tmp"
+echo "$dump"
+hex=$(
+	echo "$dump" |
+	grep -A 1 '_fn' |
+	grep -v '_fn' |
+	awk '{print $2}' |
+	tr 'a-f' 'A-F')
+bin=$(echo "obase=2; ibase=16; $hex" | bc | sed 's/.\{8\}/& /g')
+
+[ "$2" != '-b' ] &&  echo "$hex"
+[ "$2" != '-x' ] &&  echo "$bin"
+
+#10101000 00000000 01000000 0000000 255
+#10101000 00000000 00000010 1100000 10
+#0101 0100 1111 1111 1111 1111 0110 0000 -5
+#0101 0100 1111 1111 1111 1111 0110 0000
+
+#0101 0100 0000 0000 0000 0000 1100 0000
+#0101 0100 0000 0000 0000 0000 1100 0000 5
+##10101000 00000000 01001011 0100000
