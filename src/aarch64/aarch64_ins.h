@@ -69,6 +69,13 @@ typedef enum aarch64_load {
 	LDRB	= 0b001110010100000000000000000000, //ldrb	w0, [x0] 1-byte
 	LDRSH	= 0b011110011100000000000000000000, //ldrsh	w0, [x0] signed 2-byte
 	LDRSB	= 0b001110011100000000000000000000, //ldrsb	w0, [x0] signed 1-byte
+
+	LDRXP	= 0b111110000100000000001100000000,
+	LDRWP	= 0b101110000100000000001100000000,
+	LDRHP	= 0b011110000100000000001100000000,
+	LDRBP	= 0b001110000100000000001100000000, //ldrb	w0, [x0] 1-byte
+	LDRSHP	= 0b011110001100000000001100000000, //ldrsh	w0, [x0] signed 2-byte
+	LDRSBP	= 0b001110001100000000001100000000, //ldrsb	w0, [x0] signed 1-byte
 } aarch64_load_t;
 
 typedef enum aarch64_store {
@@ -76,7 +83,13 @@ typedef enum aarch64_store {
 	STRW	= LDRW ^ (1 << 20), //ldr	w0, [x0] 4-byte
 	STRH	= LDRH ^ (1 << 20), //ldrh	w0, [x0] 2-byte
 	STRB	= LDRB ^ (1 << 20), //ldrb	w0, [x0] 1-byte
+
+	STRXP	= LDRXP ^ (1 << 20), //ldr	x0, [x0] 8-byte
+	STRWP	= LDRWP ^ (1 << 20), //ldr	w0, [x0] 4-byte
+	STRHP	= LDRHP ^ (1 << 20), //ldrh	w0, [x0] 2-byte
+	STRBP	= LDRBP ^ (1 << 20), //ldrb	w0, [x0] 1-byte
 } aarch64_store_t;
+
 
 aarch64_t aarch64_branch(i32_t imm);
 
@@ -86,13 +99,27 @@ aarch64_t aarch64_cmpw_imm(aarch64_reg_t reg, i32_t imm);
 
 aarch64_t aarch64_cmpx_imm(aarch64_reg_t reg, i32_t imm);
 
-aarch64_t aarch64_ldr(aarch64_load_t ins, aarch64_reg_t dst, aarch64_reg_t addr_reg);
+aarch64_t aarch64_ldr(
+	aarch64_load_t ins,
+	aarch64_reg_t dst,
+	aarch64_reg_t addr_reg,
+	u32_t imm);
 
-aarch64_t aarch64_str(aarch64_store_t ins, aarch64_reg_t dst, aarch64_reg_t addr_reg);
+aarch64_t aarch64_str(
+	aarch64_store_t ins,
+	aarch64_reg_t dst,
+	aarch64_reg_t addr_reg,
+	u32_t imm);
 
 aarch64_t aarch64_mov(aarch64_reg_t dst, aarch64_reg_t src);
+aarch64_t aarch64_movw(aarch64_reg_t dst, aarch64_reg_t src);
+aarch64_t aarch64_movi(aarch64_reg_t dst, u64_t imm);
+aarch64_t aarch64_movwi(aarch64_reg_t dst, u64_t imm);
 
 aarch64_t aarch64_add_imm(aarch64_reg_t dst, aarch64_reg_t src, i32_t imm);
 
 aarch64_t aarch64_sub_imm(aarch64_reg_t dst, aarch64_reg_t src, i32_t imm);
+
+static inline aarch64_t aarch64_ret() { return 0xd65f03c0; }
+static inline aarch64_t aarch64_nop() { return 0xd503201f; }
 #endif /* _AARCH64_INSTRUCTIONS_H_ */

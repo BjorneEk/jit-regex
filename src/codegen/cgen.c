@@ -24,7 +24,7 @@ static void dfa_codegen_c_state_(FILE *out, dfa_t *dfa, re_ast_t *ast, int idx)
 	if (!state_transition_inv(dfa, idx, dsts)) {
 		for (i = 0; i < dfa->length; i++)
 			bytes_deinit(&dsts[i]);
-		fprintf(out, "	%s", accepting ? "return;\n" : "goto REDO;\n");
+		fprintf(out, "	%s", accepting ? "return 1;\n" : "goto REDO;\n");
 		return;
 	}
 	fprintf(out, "	++b;\n");
@@ -46,19 +46,21 @@ static void dfa_codegen_c_state_(FILE *out, dfa_t *dfa, re_ast_t *ast, int idx)
 		}
 		bytes_deinit(&dsts[i]);
 	}
-	fprintf(out, "		default:\n			%s;\n	}\n", accepting ? "return" : "goto REDO");
+	fprintf(out, "		default:\n			%s;\n	}\n", accepting ? "return 1" : "goto REDO");
 }
 
-void codegen_c(FILE *out, dfa_t *dfa, re_ast_t *ast)
+void codegen_c(FILE *out, dfa_t *dfa, re_ast_t *ast, const char *endchars)
 {
 	int i;
-	fprintf(out, "void lex(const char **begin, const char **end)\n{\n");
+	fprintf(out, "int lex(const char **begin, const char **end)\n{\n");
 	fprintf(out, "	const char *b = *begin;\n	*end = ((void*)0);\n	goto start;\n");
 
 	for (i = 0; i < dfa->length; i++) {
 		dfa_codegen_c_state_(out, dfa, ast, i);
 	}
-	fprintf(out, "REDO:\n	if (*end != ((void*)0))\n		return;\n");
-	fprintf(out, "	switch (*b) {\n		case '\\0':\n		case '\\n':\n			return;\n");
-	fprintf(out, "	}\n	++(*begin);\n	b = *begin;\n	goto start;\n}");
+	fprintf(out, "REDO:\n	if (*end != ((void*)0))\n		return 1;\n");
+	fprintf(out, "	switch (*b) {\n		case '\\0':\n");
+	for (i = 0; endchars[i] != '\0'; i++)
+		fprintf(out, "		case 0x%X:\n", endchars[i]);
+	fprintf(out, "			return 0;\n	}\n	++(*begin);\n	b = *begin;\n	goto start;\n}");
 }
