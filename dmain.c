@@ -6,12 +6,71 @@
 #include "src/aarch64/aarch64_ins.h"
 #include "src/jit/aarch64_jit.h"
 #include "src/util/mfile.h"
-const char *float_re = "[0-9]+(.[0-9]*)?";
 
+const char *float_re = "[0-9]+(.[0-9]*)?";
 
 const char *c_float_re = "(([0-9]+.[0-9]*)|(.[0-9]+))(f|F)?";
 const char *c_int_re = "(-[0-9]+)|([1-9][0-9]*)|(0((x[0-9a-fA-F]+)|([0-7])))";
 const char *re_print = "print";
+
+const char *c_int_re_ = "(-[0-9]+)|([1-9][0-9]*)|(0((x[0-9a-fA-F]+)|([0-7])|(b(0|1)+)))";
+
+typedef struct part {
+	char *start;
+	size_t length;
+} part_t;
+typedef struct pfile {
+	mfile_t file;
+	dla_t parts;
+} pfile_t;
+
+//#define MIN_PART (100)
+CODEGEN_DLA(part_t, parts)
+
+bool __split_part(pfile_t *f, u32_t pidx)
+{
+	u32_t pos;
+	part_t *p;
+
+	p = parts_getptr(&f->parts, pidx);
+	pos = p->length / 2;
+	printf("part %d, len %lu\n", pidx, p->length);
+	//if (split < MIN_PART)
+	//	return false;
+
+	while (pos > 0 && p->start[pos] != '\n')
+		--pos;
+	if (pos == 0)
+		return false;
+
+	parts_append(&f->parts, (part_t){
+		.start = &p->start[pos + 1],
+		.length = p->length - pos
+	});
+	p->length = pos;
+	return true;
+}
+void __partition_file(const char *fname, pfile_t *f)
+{
+
+	mfile_open(&f->file, fname);
+
+	parts_init(&f->parts, 4);
+
+	parts_append(&f->parts, (part_t){
+		.start = f->file.data,
+		.length = f->file.size
+	});
+
+	__split_part(f, 0);
+	__split_part(f, 0);
+	__split_part(f, 1);
+	printf("parts: %lu\n", f->parts.length);
+	for (int i = 0; i < f->parts.length; i++) {
+		part_t p = parts_get(&f->parts, i);
+		printf("%.*s\n", (int)p.length, p.start);
+	}
+}
 
 void test_regex(const char *re)
 {
@@ -26,7 +85,23 @@ void test_regex(const char *re)
 	re_ast_deinit(&ast);
 }
 
+void test_only_dfa(const char *re)
+{
+	re_ast_t ast;
+	resz_t root;
+	dfa_t dfa;
 
+	re_ast_init(&ast, 30);
+	root = parse_regex(&ast, re);
+
+	make_dfa(&dfa, &ast, root);
+	//regex_print(&ast, root, true);
+	//codegen_c(stdout, &dfa, &ast, "\n");
+	print_dfa(stdout, &dfa, &ast);
+
+	re_ast_deinit(&ast);
+	deinit_dfa(&dfa);
+}
 
 void test_dfa(const char *re, char *dotname, char *cname, char *sname)
 {
@@ -39,6 +114,7 @@ void test_dfa(const char *re, char *dotname, char *cname, char *sname)
 	root = parse_regex(&ast, re);
 
 	make_dfa(&dfa, &ast, root);
+
 
 	//print_dfa(stdout, &dfa, &ast);
 
@@ -87,7 +163,6 @@ void test_aarch64_asm(char *bin)
 	fwrite(code.data, sizeof(aarch64_t), code.length, fp);
 	fclose(fp);
 	arm_deinit(&code);
-
 }
 
 void _grep(const char *fname, int (*lex)(const char**,const char**))
@@ -187,12 +262,15 @@ int main(void)
 {
 	//test_regex(c_float_re);
 	//test_regex(c_int_re);
+	//pfile_t f;
 
-	test_dfa(c_float_re, "files/float.dot", "files/float.c", "files/float.S");
-	test_dfa(c_int_re,"files/int.dot", "files/int.c", "files/int.S");
-	test_dfa(re_print,"files/print.dot", "files/print.c", "files/print.S");
-	test_aarch64_asm("files/jit.bin");
-	test_jit(c_int_re,"0xFEADBEEF 07 -10 hgh", "files/int.bin");
-	test_grep("print", "files/print.in", "files/print.out");
+	//test_dfa(c_float_re, "files/float.dot", "files/float.c", "files/float.S");
+	//test_dfa(c_int_re,"files/int.dot", "files/int.c", "files/int.S");
+	test_only_dfa("(hej)|(snopp)|[0-9]*");
+	//test_dfa(re_print,"files/print.dot", "files/print.c", "files/print.S");
+	//test_aarch64_asm("files/jit.bin");
+	//test_jit(c_int_re,"0xFEADBEEF 07 -10 hgh", "files/int.bin");
+	//test_grep("print", "files/print.in", "files/print.out");
+	//partition_file("files/partition_test.in", &f);
 	return 0;
 }

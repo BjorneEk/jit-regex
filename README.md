@@ -5,15 +5,15 @@ The program creates a dfa from the regex and then jit compiles it to a64 machine
 no real optimisations are done on the state machine after converting to dfa so the generated code is in no way optimal.
 
 # Result
-test_input.c is a 5.6G large c file thats just src/aarch64/aarch64_ins.h duplicated a bunch of times
+test_input.c is 5.6G made by duplicating src/aarch64/aarch64_ins.h a bunch of times
 ```bash
 $ time ./bin/Darwin/release/target -c '= ((-[0-9]+)|([1-9][0-9]*)|(0((x[0-9a-fA-F]+)|([0-7]))))' test_input.c
 62000000
 
 ________________________________________________________
-Executed in   20.42 secs    fish           external
-   usr time    7.87 secs   78.00 micros    7.87 secs
-   sys time    2.11 secs  997.00 micros    2.11 secs
+Executed in    4.75 secs    fish           external
+   usr time    8.82 secs   76.00 micros    8.82 secs
+   sys time    6.06 secs  981.00 micros    6.06 secs
 
 $ time grep -c '= ((-[0-9]+)|([1-9][0-9]*)|(0((x[0-9a-fA-F]+)|([0-7]))))' test_input.c -E
 62000000

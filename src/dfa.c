@@ -211,6 +211,8 @@ static int dfa_newstate(dfa_t *dfa)
 		dfa->states = realloc(dfa->states, dfa->allocated * sizeof(state_t));
 	}
 	res = dfa->length;
+	dfa->states[res].is_dead = false;
+	dfa->states[res].is_seq = false;
 	++dfa->length;
 	return res;
 }
@@ -324,15 +326,61 @@ void make_dfa(dfa_t *dfa, re_ast_t *ast, resz_t root)
 	memset(S0->transition, 0, sizeof(S0->transition));
 
 	dfagen(dfa, ast, S0_idx);
+	dfa_optimize_seqs(dfa, ast);
 }
 
-void deinit_dfa(dfa_t *dfa)
+CODEGEN_DLA(resz_t, blist)
+
+static bool	in_bl(dla_t *blacklist, resz_t s)
 {
 	int i;
+	for (i = 0; i < blacklist->length; i++)
+		if (s == blist_get(blacklist, i))
+			return true;
+	return false;
+}
+static bool	is_seq_follow_state(resz_t tf[256], u8_t *sc, dla_t *blacklist)
+{
+	resz_t sc_;
+	bool has_found;
+	int i;
 
-	for (i = 0; i < dfa->length; i++)
-		free(dfa->states[i].restates);
-	free(dfa->states);
+	sc_ = tf[0];
+	if (in_bl(blacklist, sc_))
+		return false;
+	has_found = false;
+	for (i = 1; i < 256; i++) {
+		if (tf[i] == sc_)
+			continue;
+		if (has_found)
+			return false;
+		if (in_bl(blacklist, tf[i])) {
+			printf("%d was in blacklist\n", tf[i]);
+			return false;
+		}
+		blist_append(blacklist, tf[i]);
+		*sc = i;
+		has_found = true;
+	}
+
+	return has_found;
+}
+static bool	is_seq_start_state(resz_t tf[256], u8_t *sc)
+{
+	resz_t sc_;
+	bool has_found;
+	int i;
+	sc_ = tf[0];
+	has_found = false;
+	for (i = 1; i < 256; i++) {
+		if (tf[i] == sc_)
+			continue;
+		if (has_found)
+			return false;
+		*sc = i;
+		has_found = true;
+	}
+	return has_found;
 }
 
 bool is_accepting_state(re_ast_t *ast, state_t *s)
@@ -346,9 +394,73 @@ bool is_accepting_state(re_ast_t *ast, state_t *s)
 	return false;
 }
 
+CODEGEN_DLA(dfa_seq_t, seq_list)
+CODEGEN_DLA(u8_t, seq)
+
+void dfa_optimize_seqs(dfa_t *dfa, re_ast_t *ast)
+{
+	int i;
+	dfa_seq_t s;
+	dla_t blacklist;
+	u8_t ch;
+	resz_t next;
+
+	seq_list_init(&dfa->seqs, 5);
+	blist_init(&blacklist, 5);
+
+	for (i = 0; i < dfa->length; i++) {
+		if (!is_accepting_state(ast, &dfa->states[i]) &&
+			!dfa->states[i].is_dead && !dfa->states[i].is_seq &&
+			is_seq_start_state(dfa->states[i].transition, &ch)) {
+			seq_init(&s.seq, 5);
+			seq_append(&s.seq, ch);
+			dfa->states[i].is_seq = 1;
+			dfa->states[i].seq_idx = dfa->seqs.length;
+			next = dfa->states[i].transition[ch] - 1;
+			blist_append(&blacklist, i + 1);
+
+
+			while (!is_accepting_state(ast, &dfa->states[next]) &&
+				!dfa->states[next].is_dead && !dfa->states[next].is_seq &&
+				is_seq_follow_state(dfa->states[next].transition, &ch, &blacklist)) {
+				seq_append(&s.seq, ch);
+				dfa->states[next].is_dead = 1;
+				dfa->states[next].seq_idx = dfa->seqs.length;
+				blist_append(&blacklist, next + 1);
+				next = dfa->states[next].transition[ch] - 1;
+
+			}
+
+			s.next = next + 1;
+			seq_list_append(&dfa->seqs, s);
+			blist_flush(&blacklist);
+		}
+
+	}
+	blist_deinit(&blacklist);
+}
+
+void deinit_dfa(dfa_t *dfa)
+{
+	int i;
+
+	for (i = 0; i < dfa->length; i++)
+		free(dfa->states[i].restates);
+	for (i = 0; i < dfa->seqs.length; i++)
+		seq_deinit(&(seq_list_getptr(&dfa->seqs, i)->seq));
+	seq_list_deinit(&dfa->seqs);
+	free(dfa->states);
+}
+
+
+
 static void parr(FILE *out, resz_t *arr, resz_t n)
 {
 	int i;
+	if (n == 0) {
+		fprintf(out, "{}");
+		return;
+	}
 	fprintf(out, "{");
 	for (i = 0; i < n - 1; i++)
 		fprintf(out, "%d, ", arr[i]);
@@ -360,16 +472,31 @@ static void print_state(FILE *out, dfa_t *dfa, re_ast_t *ast, int idx)
 	bool accepting;
 	int i;
 	state_t *s;
-
+	dfa_seq_t se;
 
 	s = &dfa->states[idx];
+
 	accepting = is_accepting_state(ast, s);
 
 	if (idx == 0)
 		fprintf(out, "Start S1: ");
 	else
 		fprintf(out, "S%d: ", idx + 1);
+
 	parr(out, s->restates, s->length);
+
+	if (s->is_seq) {
+		se = seq_list_get(&dfa->seqs, s->seq_idx);
+		printf(" Seq: \"%.*s\" -> S%d\n", (int)se.seq.length, se.seq.data, se.next);
+		return;
+	}
+
+	if (s->is_dead) {
+		fprintf(out, " consumed by sequence: S%d\n", s->seq_idx);
+		return;
+	}
+
+
 	fprintf(out, " %c", accepting ? '[' : '{');
 
 	for (i = 0; i < 256; i++) {
