@@ -89,6 +89,7 @@ typedef enum ldr_str {
 //a64_t a64_branch(i32_t imm);
 
 a64_t a64_b(a64_cond_t cond, i32_t imm);
+a64_t a64_br(a64_reg_t r);
 a64_t a64_bl(a64_t imm);
 a64_t a64_bli(a64_t imm);
 a64_t a64_blr(a64_reg_t r);
