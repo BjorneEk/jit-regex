@@ -64,7 +64,7 @@ static void add_range(block_t *b, int start, int end, int dst)
 	}
 	addi(b, a64_b(LT, 3));
 	addi(b, a64_cmpiw(R3, end));
-	add_gbranch(b, LE, dst);
+	add_sbranch(b, LE, dst);
 }
 
 static void init_block(block_t *b, u32_t idx)
@@ -256,7 +256,7 @@ static void mov_l(block_t *b, a64_reg_t rdst, a64_reg_t rinter, u64_t val)
 	addi(b, a64_movi(rinter, (0xFFFFL << 48) & val));
 }
 
-static void gen_seq_state(mach_t *m, dfa_t *dfa, re_ast_t *ast, int idx, int *block_idx)
+static void gen_seq_state(mach_t *m, dfa_t *dfa, re_ast_t *ast, int idx, int *block_idx, int *need_cmp)
 {
 	block_t	b;
 	state_t		*s;
@@ -273,11 +273,12 @@ static void gen_seq_state(mach_t *m, dfa_t *dfa, re_ast_t *ast, int idx, int *bl
 
 	if (length > 2) {
 		bidx = add_dblock(m, data, length);
+		add_dptr(&b, bidx);
 	}
 	if (length > 128) {
+		*need_cmp = 1;
 		mov_l(&b, R6, R8, length);
 		add_sptr(&b, seq->next - 1);
-		add_dptr(&b, bidx);
 		add_gbranch(&b, B, CMP);
 		blocks_append(&m->blocks, b);
 		return;
@@ -302,7 +303,7 @@ static void gen_seq_state(mach_t *m, dfa_t *dfa, re_ast_t *ast, int idx, int *bl
 	blocks_append(&m->blocks, b);
 }
 
-static void gen_state(mach_t *m, dfa_t *dfa, re_ast_t *ast, int idx, int *block_idx)
+static void gen_state(mach_t *m, dfa_t *dfa, re_ast_t *ast, int idx, int *block_idx, int *need_cmp)
 {
 	block_t	b;
 	dla_t		dsts[dfa->length];
@@ -317,7 +318,7 @@ static void gen_state(mach_t *m, dfa_t *dfa, re_ast_t *ast, int idx, int *block_
 	if (s->is_dead)
 		return;
 	if (s->is_seq) {
-		gen_seq_state(m, dfa, ast, idx, block_idx);
+		gen_seq_state(m, dfa, ast, idx, block_idx, need_cmp);
 		return;
 	}
 
@@ -439,7 +440,7 @@ static void link_mach(mach_t *m)
 		}
 		branches_deinit(&b->branches);
 		for (j = 0; j < b->data_ptrs.length; j++) {
-			dptr = dptrs_getptr(&b->branches, j);
+			dptr = dptrs_getptr(&b->data_ptrs, j);
 
 			instruction_offset = b->offset + dptr->instruction_idx;
 			if (dptr->ty == STATE_PTR) {
@@ -447,8 +448,9 @@ static void link_mach(mach_t *m)
 				imm = destination_offset - instruction_offset;
 				seti(b, a64_adr(R7, imm), dptr->instruction_idx);
 			} else {
-				destination_offset = dblocks_get(&m->blocks, dptr->idx).offset;
+				destination_offset = dblocks_get(&m->data_blocks, dptr->idx).offset;
 				imm = destination_offset - instruction_offset;
+				//printf("pid: %u, doff: 0x%llX, ioff: 0x%llX\n", dptr->idx, destination_offset*4, instruction_offset*4);
 				seti(b, a64_adr(R4, imm), dptr->instruction_idx);
 			}
 		}
@@ -462,7 +464,8 @@ static void gen_mach(mach_t *m, dfa_t *dfa, re_ast_t *ast)
 	int block_idx;
 	block_t b;
 	int i;
-
+	int need_cmp;
+	need_cmp = 0;
 	block_idx = dfa->length + 1;
 	blocks_init(&m->blocks, 10);
 	dblocks_init(&m->data_blocks, 10);
@@ -480,7 +483,7 @@ static void gen_mach(mach_t *m, dfa_t *dfa, re_ast_t *ast)
 	blocks_append(&m->blocks, b);
 
 	for (i = 0; i < dfa->length; i++)
-		gen_state(m, dfa, ast, i, &block_idx);
+		gen_state(m, dfa, ast, i, &block_idx, &need_cmp);
 
 	m->miss = block_idx;
 	shift_block(m, &b, &block_idx);
@@ -491,6 +494,8 @@ static void gen_mach(mach_t *m, dfa_t *dfa, re_ast_t *ast)
 	blocks_append(&m->blocks, b);
 
 	m->mcmp = block_idx;
+	if (!need_cmp)
+		goto no_cmp;
 	shift_block(m, &b, &block_idx);
 
 	addi(&b, a64_simd_ld1(LD1_IMM, SIMD_B, SIMD_FULL, 4, R1, R4));
@@ -522,7 +527,7 @@ static void gen_mach(mach_t *m, dfa_t *dfa, re_ast_t *ast)
 	addi(&b, a64_add(R1, R1, 63));
 	add_gbranch(&b, B, MISS);
 	blocks_append(&m->blocks, b);
-
+no_cmp:
 	m->end = block_idx;
 	shift_block(m, &b, &block_idx);
 	addi(&b, a64_ret());
@@ -543,7 +548,7 @@ void jit_count_matches(a64_jit_t *prog, dfa_t *dfa, re_ast_t *ast)
 	a64_jit_init(prog, m.length + 10);
 	for (i = 0; i < m.data_blocks.length; i++) {
 		db = dblocks_get(&m.data_blocks, i);
-		printf("off: %llu\n",db.offset);
+		//printf("off: %llu\n",db.offset);
 		memcpy(&prog->code[db.offset], db.data, db.length);
 		free(db.data);
 	}
