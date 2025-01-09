@@ -116,7 +116,7 @@ static void gen_small_seq(block_t *b, u64_t length, u32_t dst)
 			add_sbranch(b, EQ, dst);
 		} else {
 			addi(b, a64_b(EQ, 3));
-			addi(b, a64_addi(R1, R1, 1));
+			addi(b, a64_subi(R1, R1, 1));
 			add_gbranch(b, B, MISS);
 			gen_small_seq(b, length - 2, dst);
 		}
@@ -130,7 +130,7 @@ static void gen_small_seq(block_t *b, u64_t length, u32_t dst)
 			add_sbranch(b, EQ, dst);
 		} else {
 			addi(b, a64_b(EQ, 3));
-			addi(b, a64_addi(R1, R1, 3));
+			addi(b, a64_subi(R1, R1, 3));
 			add_gbranch(b, B, MISS);
 			gen_small_seq(b, length - 4, dst);
 		}
@@ -144,7 +144,7 @@ static void gen_small_seq(block_t *b, u64_t length, u32_t dst)
 			add_sbranch(b, EQ, dst);
 		} else {
 			addi(b, a64_b(EQ, 3));
-			addi(b, a64_addi(R1, R1, 7));
+			addi(b, a64_subi(R1, R1, 7));
 			add_gbranch(b, B, MISS);
 			gen_small_seq(b, length - 8, dst);
 		}
@@ -162,7 +162,7 @@ static void gen_small_seq(block_t *b, u64_t length, u32_t dst)
 			add_sbranch(b, EQ, dst);
 		} else {
 			addi(b, a64_b(EQ, 3));
-			addi(b, a64_addi(R1, R1, 15));
+			addi(b, a64_subi(R1, R1, 15));
 			add_gbranch(b, B, MISS);
 			gen_small_seq(b, length - 16, dst);
 		}
@@ -184,7 +184,7 @@ static void gen_small_seq(block_t *b, u64_t length, u32_t dst)
 			add_sbranch(b, EQ, dst);
 		} else {
 			addi(b, a64_b(EQ, 3));
-			addi(b, a64_addi(R1, R1, 31));
+			addi(b, a64_subi(R1, R1, 31));
 			add_gbranch(b, B, MISS);
 			gen_small_seq(b, length - 32, dst);
 		}
@@ -208,7 +208,7 @@ static void gen_small_seq(block_t *b, u64_t length, u32_t dst)
 			add_sbranch(b, EQ, dst);
 		} else {
 			addi(b, a64_b(EQ, 3));
-			addi(b, a64_addi(R1, R1, 47));
+			addi(b, a64_subi(R1, R1, 47));
 			add_gbranch(b, B, MISS);
 			gen_small_seq(b, length - 48, dst);
 		}
@@ -233,7 +233,7 @@ static void gen_small_seq(block_t *b, u64_t length, u32_t dst)
 		add_sbranch(b, EQ, dst);
 	} else {
 		addi(b, a64_b(EQ, 3));
-		addi(b, a64_addi(R1, R1, 63));
+		addi(b, a64_subi(R1, R1, 63));
 		add_gbranch(b, B, MISS);
 		gen_small_seq(b, length - 48, dst);
 	}
@@ -299,6 +299,7 @@ static void gen_seq_state(mach_t *m, dfa_t *dfa, re_ast_t *ast, int idx, int *bl
 		addi(&b, a64_cmpw(R3, R5));
 	}
 	add_sbranch(&b, EQ, seq->next - 1);
+	addi(&b, a64_subi(R1, R1, 1));
 	add_gbranch(&b, B, MISS);
 	blocks_append(&m->blocks, b);
 }
@@ -537,12 +538,13 @@ no_cmp:
 	link_mach(m);
 }
 
-void jit_count_matches(a64_jit_t *prog, dfa_t *dfa, re_ast_t *ast)
+uintptr_t jit_count_matches(a64_jit_t *prog, dfa_t *dfa, re_ast_t *ast)
 {
 	mach_t m;
 	block_t b;
 	data_block_t db;
 	int i;
+	uintptr_t ep;
 
 	gen_mach(&m, dfa, ast);
 
@@ -555,10 +557,13 @@ void jit_count_matches(a64_jit_t *prog, dfa_t *dfa, re_ast_t *ast)
 	}
 	for (i = 0; i < m.blocks.length; i++) {
 		b = blocks_get(&m.blocks, i);
+		if (i == 0)
+			ep = (uintptr_t)(prog->code + b.offset);
 		memcpy(&prog->code[b.offset], b.instructions.data, b.instructions.length * sizeof(a64_t));
 		a64_deinit(&b.instructions);
 	}
 	prog->length = m.length;
 	blocks_deinit(&m.blocks);
 	dblocks_deinit(&m.data_blocks);
+	return ep;
 }

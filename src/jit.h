@@ -4,6 +4,7 @@
 #include "../include/a64_jit.h"
 #include "dfa.h"
 #include "util/dla.h"
+#include <stdint.h>
 #include <stdio.h>
 
 typedef enum branch_type {
@@ -65,5 +66,5 @@ typedef struct mach {
 } mach_t;
 
 void jit(a64_jit_t *prog, dfa_t *dfa, re_ast_t *ast, const char *endchars);
-void jit_count_matches(a64_jit_t *prog, dfa_t *dfa, re_ast_t *ast);
+uintptr_t jit_count_matches(a64_jit_t *prog, dfa_t *dfa, re_ast_t *ast);
 #endif /* _JIT_H_ */
