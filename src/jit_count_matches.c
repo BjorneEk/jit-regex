@@ -454,6 +454,7 @@ static void link_mach(mach_t *m)
 				seti(b, a64_adr(R4, imm), dptr->instruction_idx);
 			}
 		}
+		dptrs_deinit(&b->data_ptrs);
 	}
 }
 
@@ -559,4 +560,5 @@ void jit_count_matches(a64_jit_t *prog, dfa_t *dfa, re_ast_t *ast)
 	}
 	prog->length = m.length;
 	blocks_deinit(&m.blocks);
+	dblocks_deinit(&m.data_blocks);
 }
