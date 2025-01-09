@@ -1,10 +1,11 @@
 # jit compiled regex-parser (like grep)
 #
 The program creates a dfa from the regex and then jit compiles it to a64 machine code
-no real optimisations are done on the state machine after converting to dfa so the generated code is in no way optimal.
+
 
 # Result1
 test_input.c is 5.6G made by duplicating src/aarch64/aarch64_ins.h a bunch of times
+no real optimisations are done on the state machine after converting to dfa so the generated code is in no way optimal.
 ```bash
 $ time ./bin/Darwin/release/target -c '= ((-[0-9]+)|([1-9][0-9]*)|(0((x[0-9a-fA-F]+)|([0-7]))))' test_input.c
 62000000
