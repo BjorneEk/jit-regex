@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+
+LLVM_MC='/opt/homebrew/opt/llvm/bin/llvm-mc'
+LLVM_OBJDUMP='/opt/homebrew/opt/llvm/bin/llvm-objdump'
+
+do_darwin() {
+	input="$1"
+	output=$(mktemp "tempXXXXXX.o")
+	wrapped=$(mktemp "wrappedXXXXXX.s")
+
+	name="${input%.*}"
+	bn="$(basename "$name")"
+
+	cat << EOF > "$wrapped"
+	    .section __TEXT,__text,regular,pure_instructions
+	    .globl $bn
+	$bn:
+	    .incbin "$input"
+EOF
+
+	$LLVM_MC -triple arm64-apple-macos -filetype=obj "$wrapped" -o "$output"
+
+	$LLVM_OBJDUMP --macho --arch=arm64 --disassemble "$output" | awk "/$bn/ {flag=1} flag"
+	#objdump -d --disassemble "$output" | awk "/$bn/ {flag=1} flag"
+	rm -f "$output" "$wrapped"
+}
+
+do_linux() {
+	input="$1"
+	tmp=$(mktemp "tempXXXXXX.o")
+
+	name="${input%.*}"
+	bn="$(basename "$name")"
+	un=$(echo "$name" | sed 's/\//_/g')
+
+	objcopy -I binary -O elf64-littleaarch64 -B aarch64 \
+		--redefine-sym _binary_"$un"_bin_start="$bn" \
+		--redefine-sym _binary_"$un"_bin_end="$bn"_end \
+		--redefine-sym _binary_"$un"_bin_size="$bn"_size \
+		"$input" "$tmp"
+	objdump -D -b elf64-littleaarch64 -m aarch64  "$tmp" | awk "/$bn/ {flag=1} flag"
+
+	rm -f "$tmp"
+}
+
+
+[ $# -ne 1 ] && echo "Usage: $0 <binary-file>" && exit 1
+
+
+([ "$(uname -s)" == 'Darwin' ] && do_darwin "$1") || do_linux "$1"
+

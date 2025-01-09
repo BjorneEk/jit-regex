@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+{ [ $# -eq 0 ] || [ "$1" == '-h' ]; } && echo "Usage: $0 [-vbhH] <a64 instruction> (use lbl<n> for branches)" && exit 1
+
+[ "$1" == '-v' ] || [ "$1" != '-H' ] && pbin=1
+[ "$1" == '-v' ] || [ "$1" != '-b' ] && phex=1
+[ "$1" == '-v' ] && pline=1
+
+{ [ "$1" == '-v' ] || [ "$1" == '-H' ] || [ "$1" == '-b' ]; } && shift
+
+instruction="$*"
+
+if [[ $instruction =~ lbl(-?[0-9]+) ]]; then
+	lbl="${BASH_REMATCH[1]}"
+	trimmed="${instruction/${BASH_REMATCH[1]}/}"
+	lbl_abs=$(( lbl < 0 ? -lbl : lbl ))
+fi
+
+tmp=$(mktemp tempXXXXXX.S)
+tmp_obj=$(mktemp tempXXXXXX.o)
+OS=$(uname -s)
+
+echo "_fn:" > "$tmp"
+echo "	.cfi_startproc" >> "$tmp"
+
+if [ -v lbl ] && (( lbl < 0 )); then
+	{
+	echo "lbl:";
+	seq "$lbl_abs" | xargs -I{} 'echo' "	nop";
+	echo "	$trimmed";
+	} >> "$tmp"
+	line=$((lbl_abs + 1))
+elif [ -v lbl ]; then
+	{
+	echo "	$trimmed";
+	seq "$lbl_abs" | xargs -I{} 'echo' "	nop";
+	echo "lbl:";
+	} >> "$tmp"
+	line=1
+else
+	echo "	$instruction" >> "$tmp"
+	line=1
+fi
+
+{
+echo "	nop";
+echo "	nop";
+echo "	ret";
+echo "	.cfi_endproc"
+} >> "$tmp"
+#cat "$tmp"
+cc -c "$tmp" -o "$tmp_obj" -O0
+
+[ "$OS" == 'Linux' ] && dump=$(objdump --disassemble=_fn "$tmp_obj" | sed -n '/_fn/,$p' | tail -n +2)
+[ "$OS" != 'Linux' ] && dump=$(objdump -d --disassemble-symbols=_fn "$tmp_obj" | sed -n '/_fn/,$p'| tail -n +2)
+
+rm "$tmp_obj"
+rm "$tmp"
+#cat "$dump"
+mach_line=$(echo "$dump" | sed -n "${line}p")
+
+hex=$(echo "$mach_line" | awk '{print $2}' | tr 'a-f' 'A-F')
+bin=$(echo "obase=2; ibase=16; $hex" | bc)
+
+[ -v pline ] && echo "$mach_line" | awk '{$1=""; sub(/^ +/, ""); print}'
+[ -v phex ] && echo "$hex"
+[ -v pbin ] && printf "%032s" "$bin" | tr ' ' '0' | sed 's/.\{4\}/& /g' | sed 's/ $//' && echo

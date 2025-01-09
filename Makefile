@@ -6,7 +6,7 @@ TEST_BIN:=$(BIN)/test
 TARGET:=$(BIN)/target
 
 BUILD:=build/$(UNAME)
-TEST_BUILD:=$(BIN)/test/
+TEST_BUILD:=$(BIN)/test
 
 LIB:=lib/$(UNAME)
 INCLUDE:=include
@@ -35,9 +35,13 @@ TEST_OBJ_MSG_PRINTED:=1
 TEST_MSG_PRINTED:=1
 MAIN_MSG_PRINTED:=1
 
-LIBS:=$(patsubst $(LIB)/%, -L%, $(wildcard $(LIB)/*))
+FILES:=files
+GRAPH_FILES:=$(wildcard $(FILES)/*.dot)
+GRAPH_OUT:=$(patsubst $(FILES)/%.dot, $(FILES)/%_g, $(GRAPH_FILES))
+PY:=python
+DIGRAPH_SCRIPT:=digraph.py
 
-CFLAGS:=-std=c2x -pedantic -Wall -Werror -Wno-newline-eof -Wno-gnu-binary-literal -Wno-unused-function $(LIBS) -g -I$(INCLUDE) -I$(SRC)
+CFLAGS:=-std=c2x -pedantic -Wall -Werror -Wno-newline-eof -Wno-gnu-binary-literal -Wno-unused-function -Wno-unused-command-line-argument $(wildcard $(LIB)/*) -g -I$(INCLUDE) -I$(SRC)
 SRC_CFLAGS:=-flto -O3
 TEST_CFLAGS:=-flto -O3 -I$(TEST_COMMON)
 
@@ -109,6 +113,11 @@ run-tests: $(TESTS)
 		fi; \
 	done; \
 	echo "\nSummary: $${green}$$pass passed$${reset}, $${red}$$fail failed$${reset}";
+
+$(FILES)/%_g: $(FILES)/%.dot
+	$(PY) $(DIGRAPH_SCRIPT) $< $@
+
+graphs: $(GRAPH_OUT)
 
 run: $(TARGET)
 	./$<

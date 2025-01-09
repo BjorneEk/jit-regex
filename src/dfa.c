@@ -305,7 +305,7 @@ static void dfagen(dfa_t *dfa, re_ast_t *ast, int state)
 	}
 }
 
-void make_dfa(dfa_t *dfa, re_ast_t *ast, resz_t root)
+void make_dfa(dfa_t *dfa, re_ast_t *ast, resz_t root, dfa_opt_level_t opt)
 {
 	resz_t S0_len;
 	state_t *S0;
@@ -326,7 +326,8 @@ void make_dfa(dfa_t *dfa, re_ast_t *ast, resz_t root)
 	memset(S0->transition, 0, sizeof(S0->transition));
 
 	dfagen(dfa, ast, S0_idx);
-	dfa_optimize_seqs(dfa, ast);
+	if (opt == DFA_OPT_FULL)
+		dfa_optimize_seqs(dfa, ast);
 }
 
 CODEGEN_DLA(resz_t, blist)
@@ -510,23 +511,60 @@ static void print_state(FILE *out, dfa_t *dfa, re_ast_t *ast, int idx)
 	}
 	fprintf(out, "%c\n", accepting ? ']' : '}');
 }
-
+/*static void print_state_dot(FILE *out, dfa_t *dfa, re_ast_t *ast, int idx)
+{
+	bool accepting;
+	int i;
+	state_t *s;
+	dfa_seq_t *seq;
+	s = &dfa->states[idx];
+	accepting = is_accepting_state(ast, s);
+	if (s->is_seq) {
+		seq = seq_list_getptr(&dfa->seqs, s->seq_idx);
+		fprintf(out, "	S%d -> S%d [label=\"", idx + 1, seq->next);
+		for (i = 0; i < seq->seq.length; i++) {
+			if (isprint((char)seq->seq.data[i]))
+				fprintf(out, "%c", seq->seq.data[i]);
+			else
+				fprintf(out, "(0x%X)", seq->seq.data[i]);
+		}
+		fprintf(out, "\"];\n");
+	} else {
+		for (i = 0; i < 256; i++) {
+			if (s->transition[i] != 0) {
+				if (isprint((char)i))
+					fprintf(out, "	S%d -> S%d [label=\"%c\"];\n", idx + 1, s->transition[i], i);
+				else
+					fprintf(out, "	S%d -> S%d [label=\"0x%X\"];\n", idx + 1, s->transition[i], i);
+			}
+		}
+	}
+	if (accepting)
+		fprintf(out, "S%d [shape=doublecircle];\n", idx + 1);
+} */
 static void print_state_dot(FILE *out, dfa_t *dfa, re_ast_t *ast, int idx)
 {
 	bool accepting;
 	int i;
 	state_t *s;
-
-
+	dfa_seq_t *seq;
+	char *fmt;
 	s = &dfa->states[idx];
 	accepting = is_accepting_state(ast, s);
-
-	for (i = 0; i < 256; i++) {
-		if (s->transition[i] != 0) {
-			if (isprint((unsigned char)i)) {
-				fprintf(out, "	S%d -> S%d [label=\"%c\"];\n", idx + 1, s->transition[i], i);
-			} else {
-				fprintf(out, "	S%d -> S%d [label=\"0x%X\"];\n", idx + 1, s->transition[i], i);
+	if (s->is_seq) {
+		seq = seq_list_getptr(&dfa->seqs, s->seq_idx);
+		fprintf(out, "	S%d -> S%d [label=\"", idx + 1, seq->next);
+		for (i = 0; i < seq->seq.length; i++) {
+			fmt = isprint((unsigned char)seq->seq.data[i]) ? "%c" : "(0x%X)";
+			fprintf(out, fmt, seq->seq.data[i]);
+		}
+		fprintf(out, "\"];\n");
+		return;
+	} else {
+		for (i = 0; i < 256; i++) {
+			if (s->transition[i] != 0) {
+				fmt = isprint((unsigned char)i) ? "	S%d -> S%d [label=\"%c\"];\n" : "	S%d -> S%d [label=\"0x%X\"];\n";
+				fprintf(out, fmt, idx + 1, s->transition[i], i);
 			}
 		}
 	}
@@ -548,6 +586,8 @@ void print_dfa_digraph(FILE *out, dfa_t *dfa, re_ast_t *ast)
 	printf("generated digraph, view digraph on 'https://dreampuf.github.io/GraphvizOnline'\n");
 	fprintf(out, "digraph StateMachine {\n	start -> S1\n");
 	for (i = 0; i < dfa->length; i++) {
+		if (dfa->states[i].is_dead)
+			continue;
 		print_state_dot(out, dfa, ast, i);
 	}
 	fprintf(out, "}");
