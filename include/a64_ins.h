@@ -88,14 +88,24 @@ typedef enum ldr_str {
 
 //a64_t a64_branch(i32_t imm);
 
+//https://developer.arm.com/documentation/ddi0602/2024-09/Base-Instructions/B-cond--Branch-conditionally-?lang=en
 a64_t a64_b(a64_cond_t cond, i32_t imm);
+
+//https://developer.arm.com/documentation/ddi0602/2024-09/Base-Instructions/BR--Branch-to-register-?lang=en
 a64_t a64_br(a64_reg_t r);
+
+//https://developer.arm.com/documentation/ddi0602/2024-09/Base-Instructions/BL--Branch-with-link-?lang=en
 a64_t a64_bl(a64_t imm);
+
 a64_t a64_bli(a64_t imm);
+
+//https://developer.arm.com/documentation/ddi0602/2024-09/Base-Instructions/BLR--Branch-with-link-to-register-?lang=en
 a64_t a64_blr(a64_reg_t r);
 
+//https://developer.arm.com/documentation/ddi0602/2024-09/Base-Instructions/CMP--immediate---Compare--immediate---an-alias-of-SUBS--immediate--?lang=en
 a64_t a64_cmpiw(a64_reg_t reg, i32_t imm);
 
+//https://developer.arm.com/documentation/ddi0602/2024-09/Base-Instructions/CMP--immediate---Compare--immediate---an-alias-of-SUBS--immediate--?lang=en
 a64_t a64_cmpi(a64_reg_t reg, i32_t imm);
 
 a64_t a64_mov(a64_reg_t dst, a64_reg_t src);
@@ -171,4 +181,9 @@ a64_t a64_simd_cmeq(a64_simd_sz_t size, a64_simd_q_t q, a64_reg_t dst, a64_reg_t
 a64_t a64_simd_umaxv(a64_simd_sz_t size, a64_simd_q_t q, a64_reg_t dst, a64_reg_t src);
 a64_t a64_simd_uminv(a64_simd_sz_t size, a64_simd_q_t q, a64_reg_t dst, a64_reg_t src);
 a64_t a64_simd_umov(a64_simd_sz_t size, u32_t idx, a64_reg_t dst, a64_reg_t src);
+
+a64_t a64_simd_movi(a64_simd_q_t q, u32_t op, u32_t cmode, u8_t imm, a64_reg_t dst);
+a64_t a64_simd_movib(a64_simd_q_t q, a64_reg_t dst, u8_t imm8);
+a64_t a64_simd_umaxp(a64_simd_sz_t size, a64_simd_q_t q, a64_reg_t dst, a64_reg_t r1, a64_reg_t r2);
+a64_t a64_simd_uminp(a64_simd_sz_t size, a64_simd_q_t q, a64_reg_t dst, a64_reg_t r1, a64_reg_t r2);
 #endif /* _A64_INSTRUCTIONS_H_ */

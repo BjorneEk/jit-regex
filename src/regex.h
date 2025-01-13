@@ -11,6 +11,9 @@ typedef enum re_type {
 	RE_OR,
 	RE_CHAR
 } re_type_t;
+
+#define RE_INF_LEN (~0LLU)
+
 typedef unsigned short resz_t;
 
 typedef struct regex {
@@ -19,11 +22,13 @@ typedef struct regex {
 	resz_t first, last;
 	resz_t children[2];
 } re_t;
+
 typedef struct szbuff {
 	resz_t *data;
 	resz_t allocated;
 	resz_t len;
 } szbuff_t;
+
 typedef struct re_ast {
 	re_t *tree;
 	szbuff_t *follows;
@@ -32,6 +37,8 @@ typedef struct re_ast {
 	resz_t *data;
 	resz_t allocated_data;
 	resz_t data_length;
+	u64_t	min_length;
+	u64_t	max_length;
 } re_ast_t;
 
 void re_ast_deinit(re_ast_t *ast);

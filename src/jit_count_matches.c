@@ -98,7 +98,6 @@ static u64_t add_dblock(mach_t *m, u8_t *data, u64_t length)
 }
 
 CODEGEN_DLA(dfa_seq_t, seq_list)
-static void gen_large_seq();
 static void gen_small_seq(block_t *b, u64_t length, u32_t dst)
 {
 	if (length == 1) {
@@ -255,7 +254,30 @@ static void mov_l(block_t *b, a64_reg_t rdst, a64_reg_t rinter, u64_t val)
 	addi(b, a64_add(rdst, rdst, rinter));
 	addi(b, a64_movi(rinter, (0xFFFFL << 48) & val));
 }
+/*
+static void gen_s0(mach_t *m, dfa_t *dfa, re_ast_t *ast, int idx, int *block_idx, int *need_cmp)
+{
+	block_t b;
+	state_t *s;
+	dfa_seq_t *seq;
+	u8_t *data;
+	u64_t length;
 
+	s = &dfa->states[idx];
+	init_block(&b, idx);
+	seq = seq_list_getptr(&dfa->seqs, s->seq_idx);
+	data = seq->seq.data;
+	length = seq->seq.length;
+
+
+	addi(&b, a64_simd_ld1(LD1_IMM, SIMD_B, SIMD_FULL, 4, R1, R1));
+	addi(&b, a64_simd_movib(SIMD_FULL, R0, 0));
+	addi(&b, a64_simd_cmeq(SIMD_B, SIMD_FULL, R1, R1, R0));
+	addi(&b, a64_simd_cmeq(SIMD_B, SIMD_FULL, R2, R2, R0));
+	addi(&b, a64_simd_cmeq(SIMD_B, SIMD_FULL, R3, R3, R0));
+	addi(&b, a64_simd_cmeq(SIMD_B, SIMD_FULL, R4, R4, R0));
+}
+*/
 static void gen_seq_state(mach_t *m, dfa_t *dfa, re_ast_t *ast, int idx, int *block_idx, int *need_cmp)
 {
 	block_t	b;
@@ -265,11 +287,14 @@ static void gen_seq_state(mach_t *m, dfa_t *dfa, re_ast_t *ast, int idx, int *bl
 	u64_t length;
 	u16_t raw;
 	u64_t bidx;
+
 	s = &dfa->states[idx];
 	init_block(&b, idx);
 	seq = seq_list_getptr(&dfa->seqs, s->seq_idx);
 	data = seq->seq.data;
 	length = seq->seq.length;
+
+
 
 	if (length > 2) {
 		bidx = add_dblock(m, data, length);

@@ -14,7 +14,7 @@
 
 #define A64_JIT_ERROR "A64 JIT Error"
 typedef struct a64_jit {
-	a64_t	*code;
+	a64_t		*code;
 	size_t		length;
 	size_t		real_size;
 	bool		executable;

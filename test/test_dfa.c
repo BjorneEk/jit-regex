@@ -23,5 +23,9 @@ void test_dfa(const char *re)
 int main(void)
 {
 	test_dfa("(hej)|(snopp)|[0-9]*");
+	puts("");
+	test_dfa("hej");
+	puts("");
+	test_dfa("h");
 	return 0;
 }

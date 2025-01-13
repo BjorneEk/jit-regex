@@ -284,11 +284,68 @@ static resz_t re_parse(re_ast_t *ast, resz_t prev, pctx_t *ctx)
 	}
 }
 
+static void calc_max_len(re_ast_t *ast, resz_t node, u64_t *max)
+{
+	u64_t m1, m2;
+	if (*max == RE_INF_LEN)
+		return;
+
+	switch (re_type(ast, node)) {
+		case RE_NULL:
+		case RE_ACCEPT:
+			break;
+		case RE_CAT:
+			calc_max_len(ast, *re_child(ast, node, 0), max);
+			calc_max_len(ast, *re_child(ast, node, 1), max);
+			break;
+		case RE_STAR:
+			*max = RE_INF_LEN;
+			break;
+		case RE_OR:
+			m1 = m2 = 0;
+			calc_max_len(ast, *re_child(ast, node, 0), &m1);
+			calc_max_len(ast, *re_child(ast, node, 1), &m2);
+			*max += m1 >= m2 ? m1 : m2;
+			break;
+		case RE_CHAR:
+			++*max;
+			break;
+	}
+}
+
+static void calc_min_len(re_ast_t *ast, resz_t node, u64_t *min)
+{
+	u64_t m1, m2;
+	if (*min == RE_INF_LEN)
+		return;
+
+	switch (re_type(ast, node)) {
+		case RE_NULL:
+		case RE_ACCEPT:
+		case RE_STAR:
+			break;
+		case RE_CAT:
+			calc_min_len(ast, *re_child(ast, node, 0), min);
+			calc_min_len(ast, *re_child(ast, node, 1), min);
+			break;
+		case RE_OR:
+			m1 = m2 = 0;
+			calc_min_len(ast, *re_child(ast, node, 0), &m1);
+			calc_min_len(ast, *re_child(ast, node, 1), &m2);
+			*min += m1 <= m2 ? m1 : m2;
+			break;
+		case RE_CHAR:
+			++*min;
+			break;
+	}
+}
+
 resz_t parse_regex(re_ast_t *ast, const char *regex)
 {
 	pctx_t ctx;
 	resz_t root;
 	resz_t acc, cat;
+	u64_t min, max;
 	ctx.re = regex;
 	ctx.i = 0;
 	root = re_parse_tl(ast, &ctx);
@@ -296,6 +353,11 @@ resz_t parse_regex(re_ast_t *ast, const char *regex)
 	acc = re_add(ast, RE_ACCEPT);
 	*re_child(ast, cat, 0) = root;
 	*re_child(ast, cat, 1) = acc;
+	min = max = 0;
+	calc_min_len(ast, cat, &min);
+	calc_max_len(ast, cat, &max);
+	ast->max_length = max;
+	ast->min_length = min;
 	return cat;
 }
 
