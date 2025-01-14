@@ -141,7 +141,7 @@ static u32_t find_offset(mach_t *m, u32_t block_idx)
 static void solve_state(mach_t *m, branch_t *b)
 {
 	switch (b->ty) {
-		case CMP:
+		case BCMP:
 			b->destination_block_index = m->mcmp;
 			break;
 		case END:

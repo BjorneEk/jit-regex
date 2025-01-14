@@ -94,6 +94,10 @@ a64_t a64_b(a64_cond_t cond, i32_t imm);
 //https://developer.arm.com/documentation/ddi0602/2024-09/Base-Instructions/BR--Branch-to-register-?lang=en
 a64_t a64_br(a64_reg_t r);
 
+a64_t a64_cbzw(a64_reg_t r, i32_t imm19);
+a64_t a64_cbz(a64_reg_t r, i32_t imm19);
+a64_t a64_cbnzw(a64_reg_t r, i32_t imm19);
+a64_t a64_cbnz(a64_reg_t r, i32_t imm19);
 //https://developer.arm.com/documentation/ddi0602/2024-09/Base-Instructions/BL--Branch-with-link-?lang=en
 a64_t a64_bl(a64_t imm);
 
@@ -177,7 +181,12 @@ typedef enum a64_simd_ld1_mode {
 //a64_t a64_simd_ld1(a64_simd_sz_t size, a64_simd_q_t q, u32_t cnt, a64_reg_t dst, a64_reg_t addr);
 a64_t a64_simd_ld1(a64_simd_ld1_mode_t mode, a64_simd_sz_t size, a64_simd_q_t q, u32_t cnt, a64_reg_t dst, a64_reg_t addr, ...);
 a64_t a64_simd_and(a64_simd_q_t q, a64_reg_t dst, a64_reg_t s1, a64_reg_t s2);
+a64_t a64_simd_not(a64_simd_q_t q, a64_reg_t dst, a64_reg_t r);
+static inline a64_t a64_simd_mvn(a64_simd_q_t q, a64_reg_t r) { return a64_simd_not(q,r,r); }
 a64_t a64_simd_cmeq(a64_simd_sz_t size, a64_simd_q_t q, a64_reg_t dst, a64_reg_t s1, a64_reg_t s2);
+a64_t a64_simd_cmhi(a64_simd_sz_t size, a64_simd_q_t q, a64_reg_t dst, a64_reg_t s1, a64_reg_t s2);
+a64_t a64_simd_cmhs(a64_simd_sz_t size, a64_simd_q_t q, a64_reg_t dst, a64_reg_t s1, a64_reg_t s2);
+
 a64_t a64_simd_umaxv(a64_simd_sz_t size, a64_simd_q_t q, a64_reg_t dst, a64_reg_t src);
 a64_t a64_simd_uminv(a64_simd_sz_t size, a64_simd_q_t q, a64_reg_t dst, a64_reg_t src);
 a64_t a64_simd_umov(a64_simd_sz_t size, u32_t idx, a64_reg_t dst, a64_reg_t src);

@@ -14,7 +14,7 @@ typedef enum branch_type {
 	REDO,
 	REDO_INNER,
 	MISS,
-	CMP
+	BCMP
 } branch_type_t;
 
 typedef struct branch {
@@ -27,6 +27,7 @@ typedef enum data_ptr_type {
 	STATE_PTR,
 	DATA_PTR
 } data_ptr_type_t;
+
 typedef struct data_ptr {
 	data_ptr_type_t ty;
 	u64_t instruction_idx;

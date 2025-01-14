@@ -1,5 +1,5 @@
 #include "jit.h"
-
+#include "../include/a64_abbr.h"
 #include <string.h>
 #include <unistd.h>
 
@@ -304,7 +304,7 @@ static void gen_seq_state(mach_t *m, dfa_t *dfa, re_ast_t *ast, int idx, int *bl
 		*need_cmp = 1;
 		mov_l(&b, R6, R8, length);
 		add_sptr(&b, seq->next - 1);
-		add_gbranch(&b, B, CMP);
+		add_gbranch(&b, B, BCMP);
 		blocks_append(&m->blocks, b);
 		return;
 	}
@@ -405,7 +405,7 @@ static u32_t find_offset(mach_t *m, u32_t block_idx)
 static void solve_state(mach_t *m, branch_t *b)
 {
 	switch (b->ty) {
-		case CMP:
+		case BCMP:
 			b->destination_block_index = m->mcmp;
 			break;
 		case END:
@@ -592,3 +592,45 @@ uintptr_t jit_count_matches(a64_jit_t *prog, dfa_t *dfa, re_ast_t *ast)
 	dblocks_deinit(&m.data_blocks);
 	return ep;
 }
+/*
+abstract c code;
+
+typedef union vr {u64_t D[2];u32_t S[4];u16_t H[8];u8_t B[16];} vr_t;
+bool has_first(vr_t);
+bool is_first(u8_t);
+bool is_match(u8_t**, u64_t*);
+u64_t umax(u64_t,u64_t);
+
+u64_t count(u8_t* in, u64_t in_len)
+{
+	const u64_t max, min;
+	u64_t cnt;
+	vr_t vc;
+	u8_t c;
+
+	cnt = 0;
+fast:
+	vc = *((vr_t*)in);
+	in += 64;
+	in_len -= 64;
+	if (!has_first(vc) && in_len - 64 >= umax(64, min))
+		goto fast;
+	in -= 64;
+	in_len += 64;
+slow:
+	// assuming S0 is not a sequence
+	if (in_len < min)
+		return cnt;
+	c = *in++;
+	--in_len;
+	if (!is_first(c))
+		goto slow;
+	if (is_match(&in, &in_len))
+		++cnt;
+	if (in_len < umax(64, min))
+		goto slow;
+	goto fast;
+}
+abstract arm code;
+
+*/
