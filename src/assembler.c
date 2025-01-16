@@ -3,22 +3,22 @@
 
 
 
-DLA_GEN(static, idep_t, deps, init, deinit, push)
-DLA_GEN(static, a64_t, mach, init, deinit, push, len, set)
-DLA_GEN(static, block_t, blocks, init, deinit, push, len)
+DLA_GEN(, idep_t, deps, init, deinit, push)
+DLA_GEN(, a64_t, mach, init, deinit, push, len, set)
+DLA_GEN(, block_t, blocks, init, deinit, push, len)
 
 
-static idep_t branch_dep(dep_type_t ty, u64_t instruction_index, a64_cond_t cond, u32_t target_ident)
+idep_t branch_dep(dep_type_t ty, u64_t instruction_index, a64_cond_t cond, u32_t target_ident)
 {
 	return (idep_t) {.ty = ty, .instruction_index = instruction_index, .cond = cond, .target_ident = target_ident};
 }
 
-static idep_t load_dep(dep_type_t ty, u64_t instruction_index, a64_reg_t dst_reg, u32_t target_ident)
+idep_t load_dep(dep_type_t ty, u64_t instruction_index, a64_reg_t dst_reg, u32_t target_ident)
 {
 	return (idep_t) {.ty = ty, .instruction_index = instruction_index, .dst_reg = dst_reg, .target_ident = target_ident};
 }
 
-static void b_state(block_t *b, a64_cond_t cond, u32_t target_ident)
+void b_state(block_t *b, a64_cond_t cond, u32_t target_ident)
 {
 	deps_push(&b->deps,
 	branch_dep(
@@ -29,7 +29,7 @@ static void b_state(block_t *b, a64_cond_t cond, u32_t target_ident)
 	mach_push(&b->instructions, 0);
 }
 
-static void b_lbl(block_t *b, a64_cond_t cond, u32_t target_ident)
+void b_lbl(block_t *b, a64_cond_t cond, u32_t target_ident)
 {
 	deps_push(&b->deps,
 	branch_dep(
@@ -40,7 +40,7 @@ static void b_lbl(block_t *b, a64_cond_t cond, u32_t target_ident)
 	mach_push(&b->instructions, 0);
 }
 
-static void ld_state(block_t *b, a64_reg_t dst_reg, u32_t target_ident)
+void ld_state(block_t *b, a64_reg_t dst_reg, u32_t target_ident)
 {
 	deps_push(&b->deps,
 	load_dep(
@@ -51,7 +51,7 @@ static void ld_state(block_t *b, a64_reg_t dst_reg, u32_t target_ident)
 	mach_push(&b->instructions, 0);
 }
 
-static void ld_lbl(block_t *b, a64_reg_t dst_reg, u32_t target_ident)
+void ld_lbl(block_t *b, a64_reg_t dst_reg, u32_t target_ident)
 {
 	deps_push(&b->deps,
 	load_dep(
@@ -62,7 +62,7 @@ static void ld_lbl(block_t *b, a64_reg_t dst_reg, u32_t target_ident)
 	mach_push(&b->instructions, 0);
 }
 
-static void init_iblock(block_t *b, block_type_t ty, u32_t ident)
+void init_iblock(block_t *b, block_type_t ty, u32_t ident)
 {
 	b->ty = ty;
 	b->ident = ident;
@@ -70,14 +70,14 @@ static void init_iblock(block_t *b, block_type_t ty, u32_t ident)
 	mach_init(&b->instructions, 3);
 }
 
-static void set_dblock(block_t *b, u32_t ident, u64_t length, u8_t *data)
+void set_dblock(block_t *b, u32_t ident, u64_t length, u8_t *data)
 {
 	b->ident = ident;
 	b->data = data;
 	b->length = length;
 }
 
-static void link(dla_t *blocks)
+void link(dla_t *blocks)
 {
 	u64_t offset, max_offset;
 	u32_t imm;
