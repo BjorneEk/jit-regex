@@ -2,9 +2,9 @@
 
 #include <unistd.h>
 
-CODEGEN_DLA(branch_t, branches)
-CODEGEN_DLA(a64_t, a64)
-CODEGEN_DLA(block_t, blocks)
+DLA_GEN(static, branch_t, branches, init, push, get, getp, deinit)
+DLA_GEN(static, a64_t, a64, init, push, get, getp, deinit)
+DLA_GEN(static, block_t, blocks, init, push, get, getp, deinit)
 
 
 static inline branch_t sbranch(a64_cond_t cond, u64_t ins, u32_t dst)
@@ -28,22 +28,22 @@ static inline branch_t branch_other(a64_cond_t cond, u64_t ins, branch_type_t ty
 
 static inline a64_t *addi(block_t *b, a64_t ins)
 {
-	a64_append(&b->instructions, ins);
+	a64_push(&b->instructions, ins);
 	return &((a64_t*)(b->instructions.data))[b->instructions.length - 1];
 }
 
 static void seti(block_t *b, a64_t ins, u64_t idx)
 {
-	*a64_getptr(&b->instructions, idx) = ins;
+	*a64_getp(&b->instructions, idx) = ins;
 }
 
 static inline void add_sbranch(block_t *b, a64_cond_t ty, u32_t dst)
 {
-	branches_append(&b->branches, sbranch(ty, addi(b, 0) - ((a64_t*)b->instructions.data), dst));
+	branches_push(&b->branches, sbranch(ty, addi(b, 0) - ((a64_t*)b->instructions.data), dst));
 }
 static inline void add_gbranch(block_t *b, a64_cond_t cond, branch_type_t ty)
 {
-	branches_append(&b->branches, branch_other(cond, addi(b, 0) - ((a64_t*)b->instructions.data), ty));
+	branches_push(&b->branches, branch_other(cond, addi(b, 0) - ((a64_t*)b->instructions.data), ty));
 }
 
 static void add_range(block_t *b, int start, int end, int dst, bool accepting)
@@ -87,13 +87,13 @@ static void gen_state(mach_t *m, dfa_t *dfa, re_ast_t *ast, int idx, int *block_
 			bytes_deinit(&dsts[i]);
 		if (accepting)
 			add_gbranch(&b, B, accepting ? END : REDO);
-		blocks_append(&m->blocks, b);
+		blocks_push(&m->blocks, b);
 		return;
 	}
 
 	if (idx == 0) {
 		addi(&b, a64_addi(R2, R2, 1)); // cut of block to form start block
-		blocks_append(&m->blocks, b);
+		blocks_push(&m->blocks, b);
 		init_block(&b, *block_idx);
 		m->start = *(block_idx);
 		(*block_idx)++;
@@ -122,7 +122,7 @@ iter_end:
 		bytes_deinit(&dsts[i]);
 	}
 	add_gbranch(&b, B, accepting ? END : REDO);
-	blocks_append(&m->blocks, b);
+	blocks_push(&m->blocks, b);
 }
 
 static u32_t find_offset(mach_t *m, u32_t block_idx)
@@ -130,7 +130,7 @@ static u32_t find_offset(mach_t *m, u32_t block_idx)
 	int i;
 	block_t *b;
 	for (i = 0; i < m->blocks.length; i++) {
-		b = blocks_getptr(&m->blocks, i);
+		b = blocks_getp(&m->blocks, i);
 		if (b->idx == block_idx)
 			return b->offset;
 	}
@@ -175,15 +175,15 @@ static void link_mach(mach_t *m)
 
 	offset = 0;
 	for (i = 0; i < m->blocks.length; i++) {
-		b = blocks_getptr(&m->blocks, i);
+		b = blocks_getp(&m->blocks, i);
 		b->offset = offset;
 		offset += b->instructions.length;
 	}
 	m->length = offset;
 	for (i = 0; i < m->blocks.length; i++) {
-		b = blocks_getptr(&m->blocks, i);
+		b = blocks_getp(&m->blocks, i);
 		for (j = 0; j < b->branches.length; j++) {
-			branch = branches_getptr(&b->branches, j);
+			branch = branches_getp(&b->branches, j);
 			if (branch->ty != STATE)
 				solve_state(m, branch);
 			instruction_offset = b->offset + branch->instruction_idx;
@@ -210,7 +210,7 @@ static void gen_mach(mach_t *m, dfa_t *dfa, re_ast_t *ast, const char *endchars)
 	addi(&b, a64_load_store(LOAD, IMM, SZX, 0, R2, R0, 0));
 	addi(&b, a64_load_store(STORE, IMM, SZX, 0, XZR, R1, 0));
 	add_gbranch(&b, B, START);
-	blocks_append(&m->blocks, b);
+	blocks_push(&m->blocks, b);
 
 	for (i = 0; i < dfa->length; i++)
 		gen_state(m, dfa, ast, i, &block_idx);
@@ -221,14 +221,14 @@ static void gen_mach(mach_t *m, dfa_t *dfa, re_ast_t *ast, const char *endchars)
 	addi(&b, a64_load_store(LOAD, IMM, SZX, 0, R4, R1, 0));
 	addi(&b, a64_cmpi(R4, 0));
 	add_gbranch(&b, EQ, REDO_INNER);
-	blocks_append(&m->blocks, b);
+	blocks_push(&m->blocks, b);
 
 	m->end = block_idx;
 	init_block(&b, block_idx);
 	++block_idx;
 	addi(&b, a64_movi(R0, 1));
 	addi(&b, a64_ret());
-	blocks_append(&m->blocks, b);
+	blocks_push(&m->blocks, b);
 
 	m->redo_inner = block_idx;
 	init_block(&b, block_idx);
@@ -245,14 +245,14 @@ static void gen_mach(mach_t *m, dfa_t *dfa, re_ast_t *ast, const char *endchars)
 	addi(&b, a64_load_store(STORE, IMM, SZX, 0, R4, R0, 0));
 	addi(&b, a64_mov(R2, R4));
 	add_gbranch(&b, B, START);
-	blocks_append(&m->blocks, b);
+	blocks_push(&m->blocks, b);
 
 	m->miss = block_idx;
 	init_block(&b, block_idx);
 	++block_idx;
 	addi(&b, a64_mov(R0, XZR));
 	addi(&b, a64_ret());
-	blocks_append(&m->blocks, b);
+	blocks_push(&m->blocks, b);
 
 	link_mach(m);
 }

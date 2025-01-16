@@ -8,262 +8,156 @@
 
 #ifndef _DLA_H_
 #define _DLA_H_
-
-
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-#include <ctype.h>
 
-typedef struct dla {
-	uint8_t	*data;
-	size_t	allocated;	/* total allocated bytes */
-	size_t	length;		/* number of elements */
-} dla_t;
+typedef struct dla {void *data; size_t allocated; size_t length;} dla_t;
+#define _GEN_get(ts, ty, name)		ts ty name ## _get(dla_t *dla, size_t i) {return ((ty*)dla->data)[i];}
+#define _GEN_set(ts, ty, name)		ts void name ## _set(dla_t *dla, size_t i, ty val) { ((ty*)dla->data)[i] = val;}
+#define _GEN_getp(ts, ty, name)		ts ty * name ## _getp(dla_t *dla, size_t i) {return &((ty*)dla->data)[i];}
+#define _GEN_pop(ts, ty, name)		ts ty name ## _pop(dla_t *dla) { return ((ty*)dla->data)[dla->length--]; }
+#define _GEN_len(ts, ty, name)		ts size_t name ## _len(dla_t *dla) { return dla->length; }
+#define _GEN_deinit(ts, ty, name)	ts void name ## _deinit(dla_t *dla) { free(dla->data); dla->data = NULL; dla->length = 0;}
+#define _GEN_clear(ts, ty, name)	ts void name ## _clear(dla_t *dla) { dla->length = 0; }
 
-static inline
-size_t	DLA_length(dla_t *self)
-{
-	return self->length;
+#define _GEN_init(ts, ty, name)										\
+ts void name ## _init(dla_t *dla, size_t isz)								\
+{													\
+	dla->data = NULL;										\
+	if (isz == 0)											\
+		goto end;										\
+	dla->data = malloc(isz * sizeof(ty));								\
+	if (!dla->data) {										\
+		fprintf(stderr, "dla: malloc failed, Requested size: %zu\n", isz * sizeof(ty));		\
+		exit(-1);										\
+	}												\
+end:													\
+	dla->allocated = isz;										\
+	dla->length = 0;										\
 }
 
-static inline
-void	DLA_init(dla_t *res, size_t width, size_t len)
-{
-	res->allocated	= len * width;
-	res->length	= 0;
-	res->data	= (uint8_t*)calloc(len, width);
+#define _GEN_push(ts, ty, name)												\
+ts void name ## _push(dla_t *dla, ty d)											\
+{															\
+	void *newd;													\
+	if (dla->allocated <= dla->length + 1) {									\
+		dla->allocated *= 2;											\
+		newd = realloc(dla->data, dla->allocated * sizeof(ty));							\
+		if (!newd) {												\
+			fprintf(stderr, "dla: realloc failed, Requested size: %zu\n", dla->allocated * sizeof(ty));	\
+			exit(-1);											\
+		}													\
+		dla->data = newd;											\
+	}														\
+	memmove(&((ty*)dla->data)[dla->length++], &d, sizeof(ty));							\
 }
 
-static inline
-dla_t	*DLA_new(size_t width, size_t len)
-{
-	dla_t	*res;
-
-	res = (dla_t*)malloc(sizeof(dla_t));
-	DLA_init(res, width, len);
-	return res;
+#define _GEN_new(ts, ty, name)												\
+ts ty * name ## _new(dla_t *dla)											\
+{															\
+	void *newd;													\
+	if (dla->allocated <= dla->length + 1) {									\
+		dla->allocated *= 2;											\
+		newd = realloc(dla->data, dla->allocated * sizeof(ty));							\
+		if (!newd) {												\
+			fprintf(stderr, "dla: realloc failed, Requested size: %zu\n", dla->allocated * sizeof(ty));	\
+			exit(-1);											\
+		}													\
+		dla->data = newd;											\
+	}														\
+	return &((ty*)dla->data)[dla->length++];									\
 }
 
-static inline
-void	DLA_expandn(dla_t *self, size_t bytes)
-{
-	self->allocated += bytes;
-	self->data = (uint8_t*)realloc(self->data, self->allocated);
+#define _GEN_alloc(ts, ty, name)											\
+ts void name ## _alloc(dla_t *dla, size_t n)										\
+{															\
+	void *newd;													\
+	if (dla->allocated <= dla->length + n) {									\
+		dla->allocated += n;											\
+		newd = realloc(dla->data, dla->allocated * sizeof(ty));							\
+		if (!newd) {												\
+			fprintf(stderr, "dla: realloc failed, Requested size: %zu\n", dla->allocated * sizeof(ty));	\
+			exit(-1);											\
+		}													\
+		dla->data = newd;											\
+	}														\
 }
 
-static inline
-void	DLA_expand(dla_t *self, size_t width)
-{
-	DLA_expandn(self, self->allocated > width ? self->allocated : width);
-}
 
-static inline
-void	DLA_insert(dla_t *self, size_t width, uint64_t index, uint8_t *data)
-{
-	if (self->length * width == self->allocated)
-		DLA_expand(self, width);
-
-	/* move elements one step back in array to make room for the new one */
-	memmove(
-		self->data + (index + 1)	* width,	/*	dest	*/
-		self->data + index		* width,	/*	source	*/
-		self->length - index * width			/*	size	*/
-	);
-
-	memcpy(self->data + (index * width), data, width);
-	++self->length;
-}
-
-static inline
-void	DLA_append(dla_t *self, size_t width, uint8_t *data)
-{
-	if (self->length * width == self->allocated)
-		DLA_expand(self, width);
-
-	memcpy(self->data + self->length * width, data, width);
-	++self->length;
-}
-static inline
-void DLA_next(dla_t *self, size_t width, uint32_t *index)
-{
-	if (self->length * width == self->allocated)
-		DLA_expand(self, width);
-	*index = self->length;
-	++self->length;
-}
-
-static inline
-void	DLA_appendn(dla_t *self, size_t width, uint8_t *data, size_t count)
-{
-	if ((self->length + count) * width > self->allocated)
-		DLA_expand(self, count * width - (self->allocated - self->length * width));
-
-	memcpy(self->data + self->length * width, data, width * count);
-	self->length += count;
-}
-
-static inline
-void	DLA_append_dla(dla_t *self, dla_t *other, size_t width)
-{
-	size_t	other_bc;
-	size_t	self_bc;
-
-	other_bc = other->length * width;
-	self_bc = self->length * width;
-
-	if (self->allocated - self_bc < other_bc)
-		DLA_expandn(self, other_bc - (self->allocated - self_bc));
-
-	memcpy(self->data + self_bc, other->data, other_bc);
-	self->length += other->length;
-}
-
-static inline
-void	*DLA_get(dla_t *self, size_t width, size_t index)
-{
-	return self->data + width * index;
-}
-
-#define CODEGEN_DLA(value_type, prefix)						\
-static										\
-size_t	prefix##_length(dla_t *self)						\
-{										\
-	return DLA_length(self);						\
-}										\
-										\
-static										\
-void	prefix##_init(dla_t *self, size_t len)					\
-{										\
-	DLA_init(self, sizeof(value_type), len);				\
-}										\
-										\
-static										\
-dla_t	*prefix##_new(size_t len)						\
-{										\
-	return DLA_new(sizeof(value_type), len);				\
-}										\
-										\
-static										\
-void	prefix##_expandn(dla_t *self, size_t count)				\
-{										\
-	DLA_expandn(self, sizeof(value_type) * count);				\
-}										\
-										\
-static										\
-void	prefix##_expand(dla_t *self, size_t width)				\
-{										\
-	DLA_expand(self, sizeof(value_type));					\
-}										\
-										\
-static										\
-void	prefix##_insert(dla_t *self, uint64_t index, value_type val)		\
-{										\
-	DLA_insert(self, sizeof(value_type), index, (uint8_t*)&val);		\
-}										\
-										\
-static										\
-void	prefix##_append(dla_t *self, value_type val)				\
-{										\
-	DLA_append(self, sizeof(value_type), (uint8_t*)&val);			\
-}										\
-										\
-static										\
-void	prefix##_next(dla_t *self, uint32_t *index)				\
-{										\
-	DLA_next(self, sizeof(value_type), index);				\
-}										\
-										\
-static										\
-void	prefix##_appendn(dla_t *self, value_type *val, size_t count)		\
-{										\
-	DLA_appendn(self, sizeof(value_type), (uint8_t*)val, count);		\
-}										\
-										\
-static										\
-value_type	prefix##_get(dla_t *self, size_t index)				\
-{										\
-	return *(value_type*)DLA_get(self, sizeof(value_type), index);		\
-}										\
-static										\
-value_type*	prefix##_getptr(dla_t *self, size_t index)			\
-{										\
-	return (value_type*)DLA_get(self, sizeof(value_type), index);		\
-}										\
-										\
-static	inline									\
-void	prefix##_deinit(dla_t *self)						\
-{										\
-	free(self->data);							\
-	self->length = self->allocated = 0;					\
-}										\
-static inline									\
-void	prefix##_swp(dla_t *self, size_t i1, size_t i2)				\
-{										\
-	value_type tmp;								\
-	tmp = prefix##_get(self, i1);						\
-	((value_type*)self->data)[i1] = prefix##_get(self, i2);			\
-	((value_type*)self->data)[i2] = tmp;					\
-}										\
-static	inline									\
-void	prefix##_flush(dla_t *self)						\
-{										\
-	self->length = 0;							\
-}
-
-#define DLA_FOREACH(_dla, _type, _name, __stmt__) do {				\
-	size_t FOREACH_DLA_iter_##_name;					\
-	_type *_data__ = (_type*)(_dla)->data;					\
-	for (FOREACH_DLA_iter_##_name = 0;					\
-		FOREACH_DLA_iter_##_name < (_dla)->length;			\
-		FOREACH_DLA_iter_##_name++) {					\
-		_type _name = _data__[FOREACH_DLA_iter_##_name];		\
-		__stmt__;							\
-	}									\
+#define DLA_FOREACHP_ITER(_dla, _type, _name,_iname, ...) do {	\
+	size_t _iname;						\
+	_type *_data__ = (_type*)(_dla)->data;			\
+	for (_iname = 0;					\
+		_iname < (_dla)->length;			\
+		_iname++) {					\
+		_type * _name = &_data__[_iname];		\
+		__VA_ARGS__;					\
+	}							\
 }while(0);
 
-#define DLA_FOREACH_IDX(_dla, _idx, _type, _name, __stmt__) do {		\
-	size_t _idx;								\
-	_type *_data__ = (_type*)(_dla)->data;					\
-	for (_idx = 0; _idx < (_dla)->length; _idx++) {				\
-		_type _name = _data__[_idx];					\
-		__stmt__;							\
-	}									\
-}while(0);
+#define DLA_FOREACH(_dla, _type, _name, ...)			DLA_FOREACHP_ITER(_dla, _type, _name ## _ptr, FOREACH_DLA_iter_##_name, {_type _name = * _name ## _ptr; __VA_ARGS__ ;})
+#define DLA_FOREACHP(_dla, _type, _name, ...)			DLA_FOREACHP_ITER(_dla, _type, _name, FOREACH_DLA_iter_##_name, __VA_ARGS__)
+#define DLA_FOREACH_ITER(_dla, _type, _name, _iname, ...)	DLA_FOREACHP_ITER(_dla, _type, _name ## _ptr, _iname, {_type _name = * _name ## _ptr; __VA_ARGS__ ;})
 
-#define DLA_FOREACH_PTR_IDX(_dla, _idx, _type, _name, __stmt__) do {		\
-	size_t _idx;								\
-	_type *_data__ = (_type *)(_dla)->data;					\
-	for (_idx = 0; _idx < (_dla)->length; _idx++) {				\
-		_type *_name = &_data__[_idx];					\
-		__stmt__;							\
-	}									\
-} while(0);
+#define DLA_WHERE_UNSAFE(_dla, _type, _name, _expr, ...)		DLA_FOREACHP_ITER(_dla, _type, _name, WHERE_DLA_iter_##_name, if (_expr) __VA_ARGS__)
+#define DLA_WHERE_ITER_UNSAFE(_dla, _type, _name, _iname, _expr, ...)	DLA_FOREACHP_ITER(_dla, _type, _name, _iname, if (_expr) __VA_ARGS__)
+#define DLA_WHERE(_dla, _type, _name, _expr, ...)			DLA_WHERE_UNSAFE(_dla, _type, _name, _expr , {__VA_ARGS__})
+#define DLA_WHERE_ITER(_dla, _type, _name, _iname, _expr, ...)		DLA_WHERE_ITER_UNSAFE(_dla, _type, _name, _iname, _expr , {__VA_ARGS__})
 
-#define DLA_FOREACH_PTR(_dla, _type, _name, __stmt__) do {			\
-	size_t FOREACH_DLA_iter_ptr_##_name;					\
-	_type *_data__ = (_type *)(_dla)->data;					\
-	for (FOREACH_DLA_iter_ptr_##_name = 0;					\
-		FOREACH_DLA_iter_ptr_##_name < (_dla)->length;			\
-		FOREACH_DLA_iter_ptr_##_name++) {				\
-		_type *_name = &_data__[FOREACH_DLA_iter_ptr_##_name];		\
-		__stmt__;							\
-	}									\
-}while(0);
+#define DLA_FILTER(_dla, _type, _name, _expr, ...) do{					\
+	size_t FILTER_DLA_len_ ## _name = 0;						\
+	DLA_WHERE_ITER_UNSAFE((_dla), _type, _name, FILTER_DLA_iter_ ## _name, _expr, {	\
+		if (FILTER_DLA_len_ ## _name++ == FILTER_DLA_iter_ ## _name)		\
+			continue;							\
+		((_type*)((_dla)->data))[FILTER_DLA_len_ ## _name - 1] = *_name;	\
+	} __VA_OPT__(else {__VA_ARGS__;}))						\
+	(_dla)->length = FILTER_DLA_len_ ## _name;					\
+} while (0);
 
-#define DLA_MAP(_dla, _type, _name, _restype, _resname, __stmt__) 	\
-	({								\
-		_restype	*result_arr;				\
-	do {								\
-	size_t		_idx;						\
-	_type		*_data__;					\
-	result_arr = malloc((_dla)->length * sizeof(_restype));		\
-	_data__ = (_type *)(_dla)->data;				\
-	for (_idx = 0; _idx < (_dla)->length; _idx++) {		\
-		_type		_name = _data__[_idx];			\
-		_restype	_resname;				\
-		__stmt__;						\
-		result_arr[_idx] = _resname;				\
-	}								\
-}while(0); result_arr;})
+#define DLA_FOLD(_dla, _type, _name, _acc_type, _accname, _accinit, ...) ({		\
+	_acc_type _accname = _accinit;							\
+	DLA_FOREACH((_dla), _type, _name, __VA_ARGS__);					\
+	_accname;									\
+})
+
+#define _CAT(x, y) x ## y
+#define _XCAT(x, y) _CAT(x, y)
+
+#define _VA_LEN(...) _XVA_LEN(__VA_ARGS__ __VA_OPT__(,) 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
+#define _XVA_LEN(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, N, ...) N
+
+#define _GEN(f, ty, name) _CAT(_GEN_, f) (, ty, name)
+#define _GENstatic(f, ty, name) _CAT(_GEN_, f) (static, ty, name)
+
+#define _DLA_DECL_0(ts, ty, name)
+#define _DLA_DECL_1(ts, ty, name, f1) _GEN ## ts (f1, ty, name)
+#define _DLA_DECL_2(ts, ty, name, f1, ...) _GEN ## ts (f1, ty, name) _DLA_DECL_1(ts, ty, name, __VA_ARGS__)
+#define _DLA_DECL_3(ts, ty, name, f1, ...) _GEN ## ts (f1, ty, name) _DLA_DECL_2(ts, ty, name, __VA_ARGS__)
+#define _DLA_DECL_4(ts, ty, name, f1, ...) _GEN ## ts (f1, ty, name) _DLA_DECL_3(ts, ty, name, __VA_ARGS__)
+#define _DLA_DECL_5(ts, ty, name, f1, ...) _GEN ## ts (f1, ty, name) _DLA_DECL_4(ts, ty, name, __VA_ARGS__)
+#define _DLA_DECL_6(ts, ty, name, f1, ...) _GEN ## ts (f1, ty, name) _DLA_DECL_5(ts, ty, name, __VA_ARGS__)
+#define _DLA_DECL_7(ts, ty, name, f1, ...) _GEN ## ts (f1, ty, name) _DLA_DECL_6(ts, ty, name, __VA_ARGS__)
+#define _DLA_DECL_8(ts, ty, name, f1, ...) _GEN ## ts (f1, ty, name) _DLA_DECL_7(ts, ty, name, __VA_ARGS__)
+#define _DLA_DECL_9(ts, ty, name, f1, ...) _GEN ## ts (f1, ty, name) _DLA_DECL_8(ts, ty, name, __VA_ARGS__)
+#define _DLA_DECL_10(ts, ty, name, f1, ...) _GEN ## ts (f1, ty, name) _DLA_DECL_9(ts, ty, name, __VA_ARGS__)
+#define _DLA_DECL_11(ts, ty, name, f1, ...) _GEN ## ts (f1, ty, name) _DLA_DECL_10(ts, ty, name, __VA_ARGS__)
+
+#define DLA_GEN(ts, ty, name, ...) _XCAT(_DLA_DECL_, _VA_LEN(__VA_ARGS__)) (ts, ty, name __VA_OPT__(,) __VA_ARGS__)
+
+#define _DLA_POP_0(_dla, _ty, len, e1, ...) (_dla)->length = len; if ((_dla)->allocated < (_dla)->length) {exit(-1);}
+#define _DLA_POP_1(_dla, _ty, len, e1, ...) ((_ty*)(_dla)->data)[len - _VA_LEN(__VA_ARGS__) - 1] = e1; _DLA_POP_0(_dla, _ty, len, __VA_ARGS__)
+#define _DLA_POP_2(_dla, _ty, len, e1, ...) ((_ty*)(_dla)->data)[len - _VA_LEN(__VA_ARGS__) - 1] = e1; _DLA_POP_1(_dla, _ty, len, __VA_ARGS__)
+#define _DLA_POP_3(_dla, _ty, len, e1, ...) ((_ty*)(_dla)->data)[len - _VA_LEN(__VA_ARGS__) - 1] = e1; _DLA_POP_2(_dla, _ty, len, __VA_ARGS__)
+#define _DLA_POP_4(_dla, _ty, len, e1, ...) ((_ty*)(_dla)->data)[len - _VA_LEN(__VA_ARGS__) - 1] = e1; _DLA_POP_3(_dla, _ty, len, __VA_ARGS__)
+#define _DLA_POP_5(_dla, _ty, len, e1, ...) ((_ty*)(_dla)->data)[len - _VA_LEN(__VA_ARGS__) - 1] = e1; _DLA_POP_4(_dla, _ty, len, __VA_ARGS__)
+#define _DLA_POP_6(_dla, _ty, len, e1, ...) ((_ty*)(_dla)->data)[len - _VA_LEN(__VA_ARGS__) - 1] = e1; _DLA_POP_5(_dla, _ty, len, __VA_ARGS__)
+#define _DLA_POP_7(_dla, _ty, len, e1, ...) ((_ty*)(_dla)->data)[len - _VA_LEN(__VA_ARGS__) - 1] = e1; _DLA_POP_6(_dla, _ty, len, __VA_ARGS__)
+#define _DLA_POP_8(_dla, _ty, len, e1, ...) ((_ty*)(_dla)->data)[len - _VA_LEN(__VA_ARGS__) - 1] = e1; _DLA_POP_7(_dla, _ty, len, __VA_ARGS__)
+#define _DLA_POP_9(_dla, _ty, len, e1, ...) ((_ty*)(_dla)->data)[len - _VA_LEN(__VA_ARGS__) - 1] = e1; _DLA_POP_8(_dla, _ty, len, __VA_ARGS__)
+#define _DLA_POP_10(_dla, _ty, len, e1, ...) ((_ty*)(_dla)->data)[len - _VA_LEN(__VA_ARGS__) - 1] = e1; _DLA_POP_9(_dla, _ty, len, __VA_ARGS__)
+
+#define DLA_FILL(_dla, ty, ...) _XCAT(_DLA_POP_, _VA_LEN(__VA_ARGS__)) ((_dla), ty, _VA_LEN(__VA_ARGS__), __VA_ARGS__);
+
 
 #endif /* _DLA_H_ */

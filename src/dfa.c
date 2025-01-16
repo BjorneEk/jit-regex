@@ -330,7 +330,7 @@ void make_dfa(dfa_t *dfa, re_ast_t *ast, resz_t root, dfa_opt_level_t opt)
 		dfa_optimize_seqs(dfa, ast);
 }
 
-CODEGEN_DLA(resz_t, blist)
+DLA_GEN(static, resz_t, blist, init, deinit, get, getp, push, clear)
 
 static bool	in_bl(dla_t *blacklist, resz_t s)
 {
@@ -359,7 +359,7 @@ static bool	is_seq_follow_state(resz_t tf[256], u8_t *sc, dla_t *blacklist)
 			printf("%d was in blacklist\n", tf[i]);
 			return false;
 		}
-		blist_append(blacklist, tf[i]);
+		blist_push(blacklist, tf[i]);
 		*sc = i;
 		has_found = true;
 	}
@@ -395,8 +395,8 @@ bool is_accepting_state(re_ast_t *ast, state_t *s)
 	return false;
 }
 
-CODEGEN_DLA(dfa_seq_t, seq_list)
-CODEGEN_DLA(u8_t, seq)
+DLA_GEN(static, dfa_seq_t, seq_list, init, deinit, get, getp, push)
+DLA_GEN(static, u8_t, seq, init, deinit, get, getp, push)
 
 void dfa_optimize_seqs(dfa_t *dfa, re_ast_t *ast)
 {
@@ -414,27 +414,27 @@ void dfa_optimize_seqs(dfa_t *dfa, re_ast_t *ast)
 			!dfa->states[i].is_dead && !dfa->states[i].is_seq &&
 			is_seq_start_state(dfa->states[i].transition, &ch)) {
 			seq_init(&s.seq, 5);
-			seq_append(&s.seq, ch);
+			seq_push(&s.seq, ch);
 			dfa->states[i].is_seq = 1;
 			dfa->states[i].seq_idx = dfa->seqs.length;
 			next = dfa->states[i].transition[ch] - 1;
-			blist_append(&blacklist, i + 1);
+			blist_push(&blacklist, i + 1);
 
 
 			while (!is_accepting_state(ast, &dfa->states[next]) &&
 				!dfa->states[next].is_dead && !dfa->states[next].is_seq &&
 				is_seq_follow_state(dfa->states[next].transition, &ch, &blacklist)) {
-				seq_append(&s.seq, ch);
+				seq_push(&s.seq, ch);
 				dfa->states[next].is_dead = 1;
 				dfa->states[next].seq_idx = dfa->seqs.length;
-				blist_append(&blacklist, next + 1);
+				blist_push(&blacklist, next + 1);
 				next = dfa->states[next].transition[ch] - 1;
 
 			}
 
 			s.next = next + 1;
-			seq_list_append(&dfa->seqs, s);
-			blist_flush(&blacklist);
+			seq_list_push(&dfa->seqs, s);
+			blist_clear(&blacklist);
 		}
 
 	}
@@ -448,7 +448,7 @@ void deinit_dfa(dfa_t *dfa)
 	for (i = 0; i < dfa->length; i++)
 		free(dfa->states[i].restates);
 	for (i = 0; i < dfa->seqs.length; i++)
-		seq_deinit(&(seq_list_getptr(&dfa->seqs, i)->seq));
+		seq_deinit(&(seq_list_getp(&dfa->seqs, i)->seq));
 	seq_list_deinit(&dfa->seqs);
 	free(dfa->states);
 }
@@ -488,7 +488,7 @@ static void print_state(FILE *out, dfa_t *dfa, re_ast_t *ast, int idx)
 
 	if (s->is_seq) {
 		se = seq_list_get(&dfa->seqs, s->seq_idx);
-		printf(" Seq: \"%.*s\" -> S%d\n", (int)se.seq.length, se.seq.data, se.next);
+		printf(" Seq: \"%.*s\" -> S%d\n", (int)se.seq.length, (char*)se.seq.data, se.next);
 		return;
 	}
 
@@ -552,11 +552,11 @@ static void print_state_dot(FILE *out, dfa_t *dfa, re_ast_t *ast, int idx)
 	s = &dfa->states[idx];
 	accepting = is_accepting_state(ast, s);
 	if (s->is_seq) {
-		seq = seq_list_getptr(&dfa->seqs, s->seq_idx);
+		seq = seq_list_getp(&dfa->seqs, s->seq_idx);
 		fprintf(out, "	S%d -> S%d [label=\"", idx + 1, seq->next);
 		for (i = 0; i < seq->seq.length; i++) {
-			fmt = isprint((unsigned char)seq->seq.data[i]) ? "%c" : "(0x%X)";
-			fprintf(out, fmt, seq->seq.data[i]);
+			fmt = isprint((unsigned char)((u8_t*)seq->seq.data)[i]) ? "%c" : "(0x%X)";
+			fprintf(out, fmt, ((u8_t*)seq->seq.data)[i]);
 		}
 		fprintf(out, "\"];\n");
 		return;
@@ -608,7 +608,7 @@ bool state_transition_inv(dfa_t *dfa, int idx, dla_t *dsts)
 	for (i = 0; i < 256; i++)
 		if (s->transition[i] != 0) {
 			used = true;
-			bytes_append(&dsts[s->transition[i] - 1], (u8_t)i);
+			bytes_push(&dsts[s->transition[i] - 1], (u8_t)i);
 		}
 	return used;
 }

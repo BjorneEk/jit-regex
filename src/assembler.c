@@ -1,43 +1,120 @@
-#include "../include/a64_ins.h"
-#include "../include/a64_jit.h"
-#include "util/dla.h"
-#include "util/types.h"
+#include "assembler.h"
 
 
-typedef enum instruction_dependency_type {
-	BRANCH_TO_STATE,
-	BRANCH_TO_LBL,
-	LOAD_STATE_ADDRESS,
-	LOAD_LBL_ADDRESS,
-} dep_type_t;
 
-typedef enum block_type {
-	IBLOCK,
-	DBLOCK,
-} block_type_t;
 
-typedef struct instruction_dependency {
-	dep_type_t ty;
-	u64_t index;
-	union { a64_cond_t cond; a64_reg_t dst_reg; };
-	union { u32_t dst_state_idx; char *lbl; };
-} idep_t;
+DLA_GEN(static, idep_t, deps, init, deinit, push)
+DLA_GEN(static, a64_t, mach, init, deinit, push, len, set)
+DLA_GEN(static, block_t, blocks, init, deinit, push, len)
 
-typedef struct block {
-	block_type_t ty;
-	char *lbl;
-	u64_t offset;
-	u32_t state_idx;
-	union {
-		struct {dla_t instructions; dla_t deps;};
-		struct {u64_t length; u8_t *data;};
-	};
-} block_t;
 
-CODEGEN_DLA(idep_t, deps)
-CODEGEN_DLA(block_t, blocks)
+static idep_t branch_dep(dep_type_t ty, u64_t instruction_index, a64_cond_t cond, u32_t target_ident)
+{
+	return (idep_t) {.ty = ty, .instruction_index = instruction_index, .cond = cond, .target_ident = target_ident};
+}
 
-typedef struct assembly {
-	dla_t blocks;
-	u32_t length;
-} assm_t;
+static idep_t load_dep(dep_type_t ty, u64_t instruction_index, a64_reg_t dst_reg, u32_t target_ident)
+{
+	return (idep_t) {.ty = ty, .instruction_index = instruction_index, .dst_reg = dst_reg, .target_ident = target_ident};
+}
+
+static void b_state(block_t *b, a64_cond_t cond, u32_t target_ident)
+{
+	deps_push(&b->deps,
+	branch_dep(
+		BRANCH_TO_STATE,
+		mach_len(&b->instructions),
+		cond,
+		target_ident));
+	mach_push(&b->instructions, 0);
+}
+
+static void b_lbl(block_t *b, a64_cond_t cond, u32_t target_ident)
+{
+	deps_push(&b->deps,
+	branch_dep(
+		BRANCH_TO_LBL,
+		mach_len(&b->instructions),
+		cond,
+		target_ident));
+	mach_push(&b->instructions, 0);
+}
+
+static void ld_state(block_t *b, a64_reg_t dst_reg, u32_t target_ident)
+{
+	deps_push(&b->deps,
+	load_dep(
+		LOAD_STATE_ADDRESS,
+		mach_len(&b->instructions),
+		dst_reg,
+		target_ident));
+	mach_push(&b->instructions, 0);
+}
+
+static void ld_lbl(block_t *b, a64_reg_t dst_reg, u32_t target_ident)
+{
+	deps_push(&b->deps,
+	load_dep(
+		LOAD_LBL_ADDRESS,
+		mach_len(&b->instructions),
+		dst_reg,
+		target_ident));
+	mach_push(&b->instructions, 0);
+}
+
+static void init_iblock(block_t *b, block_type_t ty, u32_t ident)
+{
+	b->ty = ty;
+	b->ident = ident;
+	deps_init(&b->deps, 3);
+	mach_init(&b->instructions, 3);
+}
+
+static void set_dblock(block_t *b, u32_t ident, u64_t length, u8_t *data)
+{
+	b->ident = ident;
+	b->data = data;
+	b->length = length;
+}
+
+static void link(dla_t *blocks)
+{
+	u64_t offset, max_offset;
+	u32_t imm;
+	bool pred;
+	offset = 0;
+
+	DLA_WHERE(blocks, block_t, block, block->ty == DBLOCK, {
+		block->offset = offset;
+		offset += block->length / 4 + 1;
+	})
+
+	DLA_WHERE(blocks, block_t, block, block->ty == IBLOCK, {
+		block->offset = offset;
+		offset += mach_len(&block->instructions);
+	})
+	max_offset = offset;
+	DLA_FOREACH(blocks, block_t, block, {
+		DLA_FOREACH(&block.deps, idep_t, dep, {
+			pred = dep.ty == BRANCH_TO_STATE || dep.ty == LOAD_STATE_ADDRESS;
+			DLA_WHERE(blocks, block_t, b_,
+				pred && b_->ty == SBLOCK || !pred && b_->ty != SBLOCK,
+				if (b_->ident == dep.target_ident) {
+					offset = b_->offset;
+					break;
+			})
+
+			if (offset == max_offset) {
+				fprintf(stderr, "failed to link, could not find idend: %u\n", dep.target_ident);
+				exit(-1);
+			}
+
+			imm = offset - (block.offset + dep.instruction_index);
+			mach_set(&block.instructions, dep.instruction_index, dep.ty == BRANCH_TO_STATE || dep.ty == BRANCH_TO_LBL ?
+				a64_b(dep.cond, imm) :
+				a64_adr(dep.dst_reg, imm));
+		})
+		deps_deinit(&block.deps);
+	})
+}
+

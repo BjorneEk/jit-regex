@@ -34,7 +34,7 @@ typedef enum dfa_opt_level {
 	DFA_OPT_FULL
 } dfa_opt_level_t;
 
-CODEGEN_DLA(u8_t, bytes)
+DLA_GEN(static, u8_t, bytes, init, get, getp, deinit, clear, push)
 void make_dfa(dfa_t *dfa, re_ast_t *ast, resz_t root, dfa_opt_level_t opt);
 
 void deinit_dfa(dfa_t *dfa);

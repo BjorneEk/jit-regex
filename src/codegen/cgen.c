@@ -1,5 +1,6 @@
 #include "../dfa.h"
 #include "../util/dla.h"
+#include <ctype.h>
 
 
 
