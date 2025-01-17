@@ -62,28 +62,47 @@
 #define CMP a64_cmp
 #define CMPW a64_cmpw
 
+#define _CAT(x, y) x ## y
+#define _XCAT(x, y) _CAT(x, y)
 
-#define LDR(mode, dst, addr, imm)	a64_load_store(LOAD, mode, SZX, false, dst, addr, imm)
-#define LDRW(mode, dst, addr, imm)	a64_load_store(LOAD, mode, SZW, false, dst, addr, imm)
-#define LDRH(mode, dst, addr, imm)	a64_load_store(LOAD, mode, SZH, false, dst, addr, imm)
-#define LDRB(mode, dst, addr, imm)	a64_load_store(LOAD, mode, SZB, false, dst, addr, imm)
-#define LDRS(mode, dst, addr, imm)	a64_load_store(LOAD, mode, SZX, true, dst, addr, imm)
-#define LDRSW(mode, dst, addr, imm)	a64_load_store(LOAD, mode, SZW, true, dst, addr, imm)
-#define LDRSH(mode, dst, addr, imm)	a64_load_store(LOAD, mode, SZH, true, dst, addr, imm)
-#define LDRSB(mode, dst, addr, imm)	a64_load_store(LOAD, mode, SZB, true, dst, addr, imm)
+#define _OPT_OFF(...) _OPT_OFF_HELPER((__VA_ARGS__) __VA_OPT__(,) , 0)
+#define _OPT_OFF_HELPER(arg, N, ...) _XCAT(_OPT_OFF_ARG, N)(arg)
+#define _OPT_OFF_ARG0(arg) 0
+#define _OPT_OFF_ARG(arg) arg
 
-#define STR(mode, dst, addr, imm)	a64_load_store(STORE, mode, SZX, false, dst, addr, imm)
-#define STRW(mode, dst, addr, imm)	a64_load_store(STORE, mode, SZW, false, dst, addr, imm)
-#define STRH(mode, dst, addr, imm)	a64_load_store(STORE, mode, SZH, false, dst, addr, imm)
-#define STRB(mode, dst, addr, imm)	a64_load_store(STORE, mode, SZB, false, dst, addr, imm)
-#define STRS(mode, dst, addr, imm)	a64_load_store(STORE, mode, SZX, true, dst, addr, imm)
-#define STRSW(mode, dst, addr, imm)	a64_load_store(STORE, mode, SZW, true, dst, addr, imm)
-#define STRSH(mode, dst, addr, imm)	a64_load_store(STORE, mode, SZH, true, dst, addr, imm)
-#define STRSB(mode, dst, addr, imm)	a64_load_store(STORE, mode, SZB, true, dst, addr, imm)
+
+#define LDR(mode, dst, addr, ...)	a64_load_store(LOAD, mode, SZX, false, dst, addr, _OPT_OFF(__VA_ARGS__))
+#define LDRW(mode, dst, addr, ...)	a64_load_store(LOAD, mode, SZW, false, dst, addr, _OPT_OFF(__VA_ARGS__))
+#define LDRH(mode, dst, addr, ...)	a64_load_store(LOAD, mode, SZH, false, dst, addr, _OPT_OFF(__VA_ARGS__))
+#define LDRB(mode, dst, addr, ...)	a64_load_store(LOAD, mode, SZB, false, dst, addr, _OPT_OFF(__VA_ARGS__))
+#define LDRS(mode, dst, addr, ...)	a64_load_store(LOAD, mode, SZX, true, dst, addr, _OPT_OFF(__VA_ARGS__))
+#define LDRSW(mode, dst, addr, ...)	a64_load_store(LOAD, mode, SZW, true, dst, addr, _OPT_OFF(__VA_ARGS__))
+#define LDRSH(mode, dst, addr, ...)	a64_load_store(LOAD, mode, SZH, true, dst, addr, _OPT_OFF(__VA_ARGS__))
+#define LDRSB(mode, dst, addr, ...)	a64_load_store(LOAD, mode, SZB, true, dst, addr, _OPT_OFF(__VA_ARGS__))
+
+#define STR(mode, dst, addr, ...)	a64_load_store(STORE, mode, SZX, false, dst, addr, _OPT_OFF(__VA_ARGS__))
+#define STRW(mode, dst, addr, ...)	a64_load_store(STORE, mode, SZW, false, dst, addr, _OPT_OFF(__VA_ARGS__))
+#define STRH(mode, dst, addr, ...)	a64_load_store(STORE, mode, SZH, false, dst, addr, _OPT_OFF(__VA_ARGS__))
+#define STRB(mode, dst, addr, ...)	a64_load_store(STORE, mode, SZB, false, dst, addr, _OPT_OFF(__VA_ARGS__))
+#define STRS(mode, dst, addr, ...)	a64_load_store(STORE, mode, SZX, true, dst, addr, _OPT_OFF(__VA_ARGS__))
+#define STRSW(mode, dst, addr, ...)	a64_load_store(STORE, mode, SZW, true, dst, addr, _OPT_OFF(__VA_ARGS__))
+#define STRSH(mode, dst, addr, ...)	a64_load_store(STORE, mode, SZH, true, dst, addr, _OPT_OFF(__VA_ARGS__))
+#define STRSB(mode, dst, addr, ...)	a64_load_store(STORE, mode, SZB, true, dst, addr, _OPT_OFF(__VA_ARGS__))
 
 #define RET a64_ret
 #define NOP a64_nop
 #define BRK a64_brk
+
+#define SZ_Q_V8B SIMD_B, SIMD_HALF
+#define SZ_Q_V16B SIMD_B, SIMD_FULL
+#define SZ_Q_V4H SIMD_H, SIMD_HALF
+#define SZ_Q_V8H SIMD_H, SIMD_FULL
+#define SZ_Q_V2S SIMD_S, SIMD_HALF
+#define SZ_Q_V4S SIMD_S, SIMD_FULL
+#define SZ_Q_V1D SIMD_D, SIMD_HALF
+#define SZ_Q_V2D SIMD_D, SIMD_FULL
+
+#define LD1(ot, mode, ...) a64_simd_ld1(mode, _XCAT(SZ_Q_, ot), __VA_ARGS__)
 
 #define LD1B8(mode, ...)	a64_simd_ld1(mode, SIMD_B, SIMD_HALF, __VA_ARGS__)
 #define LD1B16(mode, ...)	a64_simd_ld1(mode, SIMD_B, SIMD_FULL, __VA_ARGS__)
@@ -103,46 +122,16 @@
 #define SIMD_MVNF(dst) ({a64_t _rdst = (dst);a64_simd_not(SIMD_FULL, _rdst, _rdst);})
 #define SIMD_MVNH(dst) ({a64_t _rdst = (dst);a64_simd_not(SIMD_HALF, _rdst, _rdst);})
 
-#define SIMD_CMEQ8B(dst, s1, s2)	a64_simd_cmeq(SIMD_B, SIMD_HALF, dst, s1, s2)
-#define SIMD_CMEQ16B(dst, s1, s2)	a64_simd_cmeq(SIMD_B, SIMD_FULL, dst, s1, s2)
-#define SIMD_CMEQ4H(dst, s1, s2)	a64_simd_cmeq(SIMD_H, SIMD_HALF, dst, s1, s2)
-#define SIMD_CMEQ8H(dst, s1, s2)	a64_simd_cmeq(SIMD_H, SIMD_FULL, dst, s1, s2)
-#define SIMD_CMEQ2S(dst, s1, s2)	a64_simd_cmeq(SIMD_S, SIMD_HALF, dst, s1, s2)
-#define SIMD_CMEQ4S(dst, s1, s2)	a64_simd_cmeq(SIMD_S, SIMD_FULL, dst, s1, s2)
-#define SIMD_CMEQ1D(dst, s1, s2)	a64_simd_cmeq(SIMD_D, SIMD_HALF, dst, s1, s2)
-#define SIMD_CMEQ2D(dst, s1, s2)	a64_simd_cmeq(SIMD_D, SIMD_FULL, dst, s1, s2)
 
-#define SIMD_CMHI8B(dst, s1, s2)	a64_simd_cmhi(SIMD_B, SIMD_HALF, dst, s1, s2)
-#define SIMD_CMHI16B(dst, s1, s2)	a64_simd_cmhi(SIMD_B, SIMD_FULL, dst, s1, s2)
-#define SIMD_CMHI4H(dst, s1, s2)	a64_simd_cmhi(SIMD_H, SIMD_HALF, dst, s1, s2)
-#define SIMD_CMHI8H(dst, s1, s2)	a64_simd_cmhi(SIMD_H, SIMD_FULL, dst, s1, s2)
-#define SIMD_CMHI2S(dst, s1, s2)	a64_simd_cmhi(SIMD_S, SIMD_HALF, dst, s1, s2)
-#define SIMD_CMHI4S(dst, s1, s2)	a64_simd_cmhi(SIMD_S, SIMD_FULL, dst, s1, s2)
-#define SIMD_CMHI1D(dst, s1, s2)	a64_simd_cmhi(SIMD_D, SIMD_HALF, dst, s1, s2)
-#define SIMD_CMHI2D(dst, s1, s2)	a64_simd_cmhi(SIMD_D, SIMD_FULL, dst, s1, s2)
 
-#define SIMD_CMHS8B(dst, s1, s2)	a64_simd_cmhs(SIMD_B, SIMD_HALF, dst, s1, s2)
-#define SIMD_CMHS16B(dst, s1, s2)	a64_simd_cmhs(SIMD_B, SIMD_FULL, dst, s1, s2)
-#define SIMD_CMHS4H(dst, s1, s2)	a64_simd_cmhs(SIMD_H, SIMD_HALF, dst, s1, s2)
-#define SIMD_CMHS8H(dst, s1, s2)	a64_simd_cmhs(SIMD_H, SIMD_FULL, dst, s1, s2)
-#define SIMD_CMHS2S(dst, s1, s2)	a64_simd_cmhs(SIMD_S, SIMD_HALF, dst, s1, s2)
-#define SIMD_CMHS4S(dst, s1, s2)	a64_simd_cmhs(SIMD_S, SIMD_FULL, dst, s1, s2)
-#define SIMD_CMHS1D(dst, s1, s2)	a64_simd_cmhs(SIMD_D, SIMD_HALF, dst, s1, s2)
-#define SIMD_CMHS2D(dst, s1, s2)	a64_simd_cmhs(SIMD_D, SIMD_FULL, dst, s1, s2)
+#define SIMD_CMEQ(ot, dst, s1, s2)	a64_simd_cmeq(_XCAT(SZ_Q_, ot), dst, s1, s2)
+#define SIMD_CMHI(ot, dst, s1, s2)	a64_simd_cmhi(_XCAT(SZ_Q_, ot), dst, s1, s2)
+#define SIMD_CMHS(ot, dst, s1, s2)	a64_simd_cmhs(_XCAT(SZ_Q_, ot), dst, s1, s2)
+#define SIMD_UMAXP(ot, dst, s1, s2)	a64_simd_umaxp(_XCAT(SZ_Q_, ot), dst, s1, s2)
+#define SIMD_UMINP(ot, dst, s1, s2)	a64_simd_uminp(_XCAT(SZ_Q_, ot), dst, s1, s2)
+#define SIMD_UMAXV(ot, dst, s1)		a64_simd_umaxv(_XCAT(SZ_Q_, ot), dst, s1)
+#define SIMD_UMINV(ot, dst, s1)		a64_simd_uminv(_XCAT(SZ_Q_, ot), dst, s1)
 
-#define SIMD_UMAXV8B(dst, s1, s2)	a64_simd_umaxv(SIMD_B, SIMD_HALF, dst, s1, s2)
-#define SIMD_UMAXV16B(dst, s1, s2)	a64_simd_umaxv(SIMD_B, SIMD_FULL, dst, s1, s2)
-#define SIMD_UMAXV4H(dst, s1, s2)	a64_simd_umaxv(SIMD_H, SIMD_HALF, dst, s1, s2)
-#define SIMD_UMAXV8H(dst, s1, s2)	a64_simd_umaxv(SIMD_H, SIMD_FULL, dst, s1, s2)
-#define SIMD_UMAXV2S(dst, s1, s2)	a64_simd_umaxv(SIMD_S, SIMD_HALF, dst, s1, s2)
-#define SIMD_UMAXV4S(dst, s1, s2)	a64_simd_umaxv(SIMD_S, SIMD_FULL, dst, s1, s2)
-
-#define SIMD_UMINV8B(dst, s1, s2)	a64_simd_uminv(SIMD_B, SIMD_HALF, dst, s1, s2)
-#define SIMD_UMINV16B(dst, s1, s2)	a64_simd_uminv(SIMD_B, SIMD_FULL, dst, s1, s2)
-#define SIMD_UMINV4H(dst, s1, s2)	a64_simd_uminv(SIMD_H, SIMD_HALF, dst, s1, s2)
-#define SIMD_UMINV8H(dst, s1, s2)	a64_simd_uminv(SIMD_H, SIMD_FULL, dst, s1, s2)
-#define SIMD_UMINV2S(dst, s1, s2)	a64_simd_uminv(SIMD_S, SIMD_HALF, dst, s1, s2)
-#define SIMD_UMINV4S(dst, s1, s2)	a64_simd_uminv(SIMD_S, SIMD_FULL, dst, s1, s2)
 
 #define SIMD_UMOVB(dst, s, idx)	a64_simd_umov(SIMD_B, idx, dst, src)
 #define SIMD_UMOVH(dst, s, idx)	a64_simd_umov(SIMD_H, idx, dst, src)
@@ -152,18 +141,5 @@
 #define SIMD_UMOVI8B(dst, imm)	a64_simd_movib(SIMD_HALF, dst, imm)
 #define SIMD_UMOVI16B(dst, imm)	a64_simd_movib(SIMD_FULL, dst, imm)
 
-#define SIMD_UMAXP8B(dst, s1, s2)	a64_simd_umaxp(SIMD_B, SIMD_HALF, dst, s1, s2)
-#define SIMD_UMAXP16B(dst, s1, s2)	a64_simd_umaxp(SIMD_B, SIMD_FULL, dst, s1, s2)
-#define SIMD_UMAXP4H(dst, s1, s2)	a64_simd_umaxp(SIMD_H, SIMD_HALF, dst, s1, s2)
-#define SIMD_UMAXP8H(dst, s1, s2)	a64_simd_umaxp(SIMD_H, SIMD_FULL, dst, s1, s2)
-#define SIMD_UMAXP2S(dst, s1, s2)	a64_simd_umaxp(SIMD_S, SIMD_HALF, dst, s1, s2)
-#define SIMD_UMAXP4S(dst, s1, s2)	a64_simd_umaxp(SIMD_S, SIMD_FULL, dst, s1, s2)
-
-#define SIMD_UMINP8B(dst, s1, s2)	a64_simd_uminp(SIMD_B, SIMD_HALF, dst, s1, s2)
-#define SIMD_UMINP16B(dst, s1, s2)	a64_simd_uminp(SIMD_B, SIMD_FULL, dst, s1, s2)
-#define SIMD_UMINP4H(dst, s1, s2)	a64_simd_uminp(SIMD_H, SIMD_HALF, dst, s1, s2)
-#define SIMD_UMINP8H(dst, s1, s2)	a64_simd_uminp(SIMD_H, SIMD_FULL, dst, s1, s2)
-#define SIMD_UMINP2S(dst, s1, s2)	a64_simd_uminp(SIMD_S, SIMD_HALF, dst, s1, s2)
-#define SIMD_UMINP4S(dst, s1, s2)	a64_simd_uminp(SIMD_S, SIMD_FULL, dst, s1, s2)
 
 #endif /* _A64_ABBR_H_ */

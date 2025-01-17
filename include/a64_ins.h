@@ -172,6 +172,16 @@ typedef enum a64_simd_q {
 	SIMD_FULL = 1
 } a64_simd_q_t;
 
+typedef enum a64_simd_optype {
+	V8B,
+	V16B,
+	V4H,
+	V8H,
+	V2S,
+	V4S,
+	V2D
+} a64_simd_optype_t;
+
 typedef enum a64_simd_ld1_mode {
 	LD1_NONE,
 	LD1_IMM,

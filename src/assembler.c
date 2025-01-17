@@ -1,5 +1,7 @@
 #include "assembler.h"
-
+#include "dfa.h"
+#include "../include/a64_abbr.h"
+#include "util/dla.h"
 
 
 
@@ -51,6 +53,11 @@ void ld_state(block_t *b, a64_reg_t dst_reg, u32_t target_ident)
 	mach_push(&b->instructions, 0);
 }
 
+void ins(block_t *b, a64_t instr)
+{
+	mach_push(&b->instructions, instr);
+}
+
 void ld_lbl(block_t *b, a64_reg_t dst_reg, u32_t target_ident)
 {
 	deps_push(&b->deps,
@@ -59,7 +66,7 @@ void ld_lbl(block_t *b, a64_reg_t dst_reg, u32_t target_ident)
 		mach_len(&b->instructions),
 		dst_reg,
 		target_ident));
-	mach_push(&b->instructions, 0);
+	ins(b, 0);
 }
 
 void init_iblock(block_t *b, block_type_t ty, u32_t ident)
@@ -105,7 +112,7 @@ void link(dla_t *blocks)
 			})
 
 			if (offset == max_offset) {
-				fprintf(stderr, "failed to link, could not find idend: %u\n", dep.target_ident);
+				fprintf(stderr, "failed to link, could not find ident: %u\n", dep.target_ident);
 				exit(-1);
 			}
 
@@ -118,3 +125,81 @@ void link(dla_t *blocks)
 	})
 }
 
+enum count_matches_lbls {
+	START,
+	FAST,
+	SLOW,
+	MISS,
+	MATCH
+};
+#define CNT (R0)
+#define PTR (R1)
+#define LEN (R2)
+#define LAST_MATCH (R3)
+#define CHAR (R4)
+
+void gen_state_seq(dla_t *blocks, dfa_t *dfa, u64_t idx, u64_t maxlen, u64_t minlen, bool accepting);
+void gen_state(dla_t *blocks, dfa_t *dfa, u64_t idx, u64_t maxlen, u64_t minlen, bool accepting)
+{
+	block_t b;
+	u64_t i;
+	dla_t dsts[dfa->length];
+
+
+	init_iblock(&b, SBLOCK, idx);
+
+	if (accepting)
+		ins(&b, MOV(LAST_MATCH, PTR));
+
+	if (!state_transition_inv(dfa, idx, dsts)) {
+		for (i = 0; i < dfa->length; i++)
+			bytes_deinit(&dsts[i]);
+		if (accepting)
+			b_lbl(&b, B, MISS);
+		blocks_push(blocks, b);
+		return;
+	}
+	ins(&b, LDRB(POST, CHAR, PTR, 1));
+}
+/*
+
+
+*/
+void gen_blocks_count_matches(dla_t *blocks, dfa_t *dfa, re_ast_t *ast)
+{
+	block_t b;
+	u64_t i;
+	init_iblock(&b, IBLOCK, START);
+	ins(&b, MOV(LEN, R1));
+	ins(&b, MOV(PTR, R0));
+	ins(&b, MOV(CNT, XZR));
+	ins(&b, MOV(LAST_MATCH, XZR));
+
+	ins(&b, CMPI(LEN, 64));
+	b_lbl(&b, LT, SLOW);
+	b_lbl(&b, B, SLOW);
+	blocks_push(blocks, b);
+	init_iblock(&b, IBLOCK, FAST);
+
+	for (i = 0; i < dfa->length; ++i) {
+		if (dfa->states[i].is_dead)
+			continue;
+		if (dfa->states[i].is_seq)
+			gen_state_seq(
+				blocks,
+				dfa,
+				i,
+				ast->max_length,
+				ast->min_length,
+				is_accepting_state(ast, &dfa->states[i]));
+		else
+			gen_state(
+				blocks,
+				dfa,
+				i,
+				ast->max_length,
+				ast->min_length,
+				is_accepting_state(ast, &dfa->states[i]));
+	}
+
+}
